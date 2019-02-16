@@ -3,14 +3,19 @@ package cmd
 import (
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"path"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/codemodus/kace"
 	"github.com/urfave/cli"
+	gcli "gnorm.org/gnorm/cli"
+	"gnorm.org/gnorm/environ"
 )
 
 var genCmd = cli.Command{
@@ -21,8 +26,46 @@ var genCmd = cli.Command{
 		cli.StringFlag{Name: "config, c", Usage: "the config filename"},
 	},
 	Action: func(ctx *cli.Context) {
+		// Run GNORM
+		copyTemplate("gnorm/table.gotmpl", "templates/table.gotmpl")
+		copyTemplate("gnorm/enum.gotmpl", "templates/enum.gotmpl")
+		copyTemplate("gnorm/schema.gotmpl", "templates/schema.gotmpl")
+
+		generateGnorm()
+
+		// Recreate GraphQL Code
 		_ = generateGQL()
 	},
+}
+
+func generateGnorm() {
+	env := environ.Values{
+		Args:   []string{"gen"},
+		Stderr: os.Stderr,
+		Stdout: os.Stdout,
+		Stdin:  os.Stdin,
+	}
+
+	gcli.ParseAndRun(env)
+}
+
+// copyTemplate Copies files from the template folder relative to *this* file
+// to the destination
+func copyTemplate(source string, destination string) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("No caller information")
+	}
+
+	input, err := ioutil.ReadFile(path.Dir(filename) + "/templates/" + source)
+	if err != nil {
+		panic(err)
+	}
+
+	err = ioutil.WriteFile(destination, input, 0644)
+	if err != nil {
+		panic(err)
+	}
 }
 
 var authorisationModels = []string{
@@ -464,9 +507,9 @@ var authorisationTemplate = template.Must(template.New("").Funcs(templateFuncs).
 package authorisation
 
 import (
-	"bitbucket.org/replaceme/api/loaders"
-	"bitbucket.org/replaceme/api/models"
-	"bitbucket.org/replaceme/api/opa"
+	"github.com/replaceme/api/loaders"
+	"github.com/replaceme/api/models"
+	"github.com/replaceme/api/opa"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -520,10 +563,10 @@ var postgresTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse
 package postgres
 
 import (
-	"bitbucket.org/replaceme/api/models"
-	"bitbucket.org/replaceme/api/validate"
-	"bitbucket.org/replaceme/gnorm/gnorm"
-	"bitbucket.org/replaceme/gnorm/gnorm/pm"
+	"github.com/replaceme/api/models"
+	"github.com/replaceme/api/validate"
+	"github.com/replaceme/gnorm/gnorm"
+	"github.com/replaceme/gnorm/gnorm/pm"
 	"github.com/codemodus/kace"
 	opentracing "github.com/opentracing/opentracing-go"
 )
@@ -780,11 +823,11 @@ var linkTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse(
 package postgres
 
 import (
-	"bitbucket.org/replaceme/api/loaders"
-	"bitbucket.org/replaceme/gnorm/gnorm"
-	"bitbucket.org/replaceme/gnorm/gnorm/pm"
-	"bitbucket.org/replaceme/api/models"
-	"bitbucket.org/replaceme/api/opa"
+	"github.com/replaceme/api/loaders"
+	"github.com/replaceme/gnorm/gnorm"
+	"github.com/replaceme/gnorm/gnorm/pm"
+	"github.com/replaceme/api/models"
+	"github.com/replaceme/api/opa"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -826,10 +869,10 @@ var resolverTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse
 package resolvers
 
 import (
-	"bitbucket.org/replaceme/api/loaders"
-	"bitbucket.org/replaceme/api/models"
-	"bitbucket.org/replaceme/api/opa"
-	"bitbucket.org/replaceme/gnorm/gnorm"
+	"github.com/replaceme/api/loaders"
+	"github.com/replaceme/api/models"
+	"github.com/replaceme/api/opa"
+	"github.com/replaceme/gnorm/gnorm"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/gqlerror"
 	opentracing "github.com/opentracing/opentracing-go"
