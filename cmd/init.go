@@ -31,13 +31,14 @@ var gqlSchemaDefault = `
 # https://gqlgen.com/getting-started/
 type Todo {
   id: ID!
-  text: String!
+  content: String!
   done: Boolean!
   user: User!
 }
 type User {
   id: ID!
-  name: String!
+  username: String!
+  admin: Boolean!
 }
 type Query {
   todos: [Todo!]!
@@ -64,17 +65,6 @@ services:
       POSTGRES_PASSWORD: estack
     volumes:
       - ./migrations:/docker-entrypoint-initdb.d
-`
-
-var sqlDefault = `
-CREATE TABLE account(
- user_id serial PRIMARY KEY,
- username VARCHAR (50) UNIQUE NOT NULL,
- password VARCHAR (50) NOT NULL,
- email VARCHAR (355) UNIQUE NOT NULL,
- created_on TIMESTAMP NOT NULL,
- last_login TIMESTAMP
-);
 `
 
 var gnormDefault = `
@@ -281,7 +271,7 @@ var initCmd = cli.Command{
 		createFile("schema.graphql", gqlSchemaDefault)
 		createFile("gqlgen.yml", gqlConfigDefault)
 		createFile("docker-compose.yml", dockerComposeDefault)
-		createFile("migrations/001-base.sql", sqlDefault)
+		copyTemplate("migrations/001-base.sql", "migrations/001-base.sql")
 		createFile("gnorm.toml", gnormDefault)
 		createFile("config.yml", configSample)
 		config := generateGQL()
