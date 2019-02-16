@@ -91,7 +91,7 @@ ConnStr = "dbname=estack host=127.0.0.1 sslmode=disable user=estack password=est
 DBType = "postgres"
 
 # Schemas holds the names of schemas to generate code for.
-Schemas = ["estack"]
+Schemas = ["public"]
 
 # PluginDirs a list of paths that will be used for finding plugins.  The list
 # will be traversed in order, looking for a specifically named plugin. The first
@@ -202,6 +202,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 # Example for mapping postgres types to Go types:
 [TypeMap]
 "timestamp with time zone" = "time.Time"
+"timestamp without time zone" = "time.Time"
 "text" = "string"
 "boolean" = "bool"
 "uuid" = "string"
@@ -225,6 +226,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 # Example for mapping postgres types to Go types:
 [NullableTypeMap]
 "timestamp with time zone" = "pq.NullTime"
+"timestamp without time zone" = "pq.NullTime"
 "text" = "sql.NullString"
 "boolean" = "sql.NullBool"
 "uuid" = "sql.NullString"
@@ -243,7 +245,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 # different situations.  The values in this field will be available in the
 # .Params value for all templates.
 [Params]
-mySpecialValue = "some value"
+packageName = "github.com/episub/stacktest"
 
 # TemplateEngine, if specified, describes a command line tool to run to
 # render your templates, allowing you to use your preferred templating
@@ -263,6 +265,10 @@ mySpecialValue = "some value"
     # UseStdout = false
 `
 
+var configSample = `
+packageName: "github.com/episub/stacktest"
+`
+
 var initCmd = cli.Command{
 	Name:  "init",
 	Usage: "create a new estack project",
@@ -270,12 +276,14 @@ var initCmd = cli.Command{
 	Action: func(ctx *cli.Context) {
 		_ = os.Mkdir("migrations", 0755)
 		_ = os.Mkdir("static", 0755)
+		_ = os.Mkdir("templates", 0755)
 
 		createFile("schema.graphql", gqlSchemaDefault)
 		createFile("gqlgen.yml", gqlConfigDefault)
 		createFile("docker-compose.yml", dockerComposeDefault)
 		createFile("migrations/001-base.sql", sqlDefault)
 		createFile("gnorm.toml", gnormDefault)
+		createFile("config.yml", configSample)
 		config := generateGQL()
 		codegen.GenerateServer(*config, "server.go")
 	},

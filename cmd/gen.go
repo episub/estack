@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	yaml "gopkg.in/yaml.v2"
+
 	"github.com/codemodus/kace"
 	"github.com/urfave/cli"
 	gcli "gnorm.org/gnorm/cli"
@@ -20,18 +22,39 @@ import (
 
 var genCmd = cli.Command{
 	Name:  "generate",
-	Usage: "generate a graphql server based on schema",
-	Flags: []cli.Flag{
-		cli.BoolFlag{Name: "verbose, v", Usage: "show logs"},
-		cli.StringFlag{Name: "config, c", Usage: "the config filename"},
-	},
+	Usage: "generate estack files",
+	Flags: []cli.Flag{},
 	Action: func(ctx *cli.Context) {
-		// Run GNORM
-		copyTemplate("gnorm/table.gotmpl", "templates/table.gotmpl")
-		copyTemplate("gnorm/enum.gotmpl", "templates/enum.gotmpl")
-		copyTemplate("gnorm/schema.gotmpl", "templates/schema.gotmpl")
+		// Load config.yml
+		input, err := ioutil.ReadFile("config.yml")
+		if err != nil {
+			panic(err)
+		}
+
+		var config Config
+		err = yaml.Unmarshal(input, &config)
+		if err != nil {
+			panic(err)
+		}
+		log.Printf("Package: %s", config.PackageName)
+
+		// GNORM related setup
+
+		// Delete any existing gnorm files so there are no legacy ones around
+		runCommand("rm -rf gnorm")
+		copyTemplate("templates/table.gotmpl", "templates/table.gotmpl")
+		copyTemplate("templates/enum.gotmpl", "templates/enum.gotmpl")
+		copyTemplate("templates/schema.gotmpl", "templates/schema.gotmpl")
 
 		generateGnorm()
+		runCommand("mv gnorm/Public/tables gnorm/dbl")
+		runCommand("rm -rf gnorm/Public")
+		runCommand("goimports -w gnorm/.")
+		runCommand("goimports -w gnorm/dbl/.")
+
+		copyTemplate("gnorm/db.go", "gnorm/db.go")
+		copyTemplate("gnorm/where.go", "gnorm/where.go")
+		copyTemplate("gnorm/dbl/util.go", "gnorm/dbl/util.go")
 
 		// Recreate GraphQL Code
 		_ = generateGQL()
@@ -57,7 +80,7 @@ func copyTemplate(source string, destination string) {
 		panic("No caller information")
 	}
 
-	input, err := ioutil.ReadFile(path.Dir(filename) + "/templates/" + source)
+	input, err := ioutil.ReadFile(path.Dir(filename) + "/static/" + source)
 	if err != nil {
 		panic(err)
 	}
