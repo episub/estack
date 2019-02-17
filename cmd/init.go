@@ -257,6 +257,15 @@ packageName = "github.com/episub/stacktest"
 
 var configSample = `
 packageName: "github.com/episub/stacktest"
+generate:
+  resolvers:
+  - singularName: "todo"
+    pluralName: "todos"
+    query: true
+  postgres:
+  - modelName: "Todo"
+    postgresName: "Todo"
+    primaryKey: "TodoID"
 `
 
 var initCmd = cli.Command{
@@ -267,6 +276,7 @@ var initCmd = cli.Command{
 		_ = os.Mkdir("migrations", 0755)
 		_ = os.Mkdir("static", 0755)
 		_ = os.Mkdir("templates", 0755)
+		_ = os.Mkdir("loaders", 0755)
 
 		createFile("schema.graphql", gqlSchemaDefault)
 		createFile("gqlgen.yml", gqlConfigDefault)

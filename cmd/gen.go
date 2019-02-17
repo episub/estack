@@ -36,7 +36,7 @@ var genCmd = cli.Command{
 		if err != nil {
 			panic(err)
 		}
-		log.Printf("Package: %s", config.PackageName)
+		log.Printf("Config:\n%+v", config)
 
 		// GNORM related setup
 
@@ -55,6 +55,11 @@ var genCmd = cli.Command{
 		copyTemplate("gnorm/db.go", "gnorm/db.go")
 		copyTemplate("gnorm/where.go", "gnorm/where.go")
 		copyTemplate("gnorm/dbl/util.go", "gnorm/dbl/util.go")
+
+		var tasks []Task
+		tasks = append(tasks, Task{Folder: "resolvers", Build: resolverBuild})
+		tasks = append(tasks, Task{Folder: "loader", Build: postgresBuild})
+		generateFiles(config, tasks)
 
 		// Recreate GraphQL Code
 		_ = generateGQL()
@@ -98,182 +103,6 @@ var authorisationModels = []string{
 	"Invoice",
 	"Person",
 	"Transaction",
-}
-
-var postgresModels = []struct {
-	ModelName string
-	PmName    string
-	PK        string
-	Create    bool
-}{
-	{
-		ModelName: "Address",
-		PmName:    "Address",
-		PK:        "AddressID",
-		Create:    true,
-	},
-	{
-		ModelName: "Area",
-		PmName:    "Area",
-		PK:        "AreaID",
-	},
-	{
-		ModelName: "Brand",
-		PmName:    "Brand",
-		PK:        "BrandID",
-	},
-	{
-		ModelName: "BankAccount",
-		PmName:    "BankAccount",
-		PK:        "BankAccountID",
-		Create:    true,
-	},
-	{
-		ModelName: "CeasedReason",
-		PmName:    "CeasedReason",
-		PK:        "CeasedReasonID",
-	},
-	{
-		ModelName: "Client",
-		PmName:    "Client",
-		PK:        "ClientID",
-		Create:    true,
-	},
-	{
-		ModelName: "Country",
-		PmName:    "Country",
-		PK:        "CountryID",
-	},
-	{
-		ModelName: "File",
-		PmName:    "File",
-		PK:        "FileID",
-		Create:    true,
-	},
-	{
-		ModelName: "Gender",
-		PmName:    "Gender",
-		PK:        "GenderID",
-	},
-	{
-		ModelName: "Invoice",
-		PmName:    "Invoice",
-		PK:        "InvoiceID",
-		Create:    true,
-	},
-	{
-		ModelName: "Note",
-		PmName:    "Note",
-		PK:        "NoteID",
-		Create:    true,
-	},
-	{
-		ModelName: "PaymentMethod",
-		PmName:    "PaymentMethod",
-		PK:        "PaymentMethodID",
-	},
-	{
-		ModelName: "Person",
-		PmName:    "Person",
-		PK:        "PersonID",
-		Create:    true,
-	},
-	{
-		ModelName: "Provider",
-		PmName:    "Provider",
-		PK:        "ProviderID",
-	},
-	{
-		ModelName: "ServiceType",
-		PmName:    "ServiceType",
-		PK:        "ServiceTypeID",
-	},
-	{
-		ModelName: "Session",
-		PmName:    "Session",
-		PK:        "SessionID",
-	},
-	{
-		ModelName: "State",
-		PmName:    "State",
-		PK:        "StateID",
-	},
-	{
-		ModelName: "Supplier",
-		PmName:    "Supplier",
-		PK:        "SupplierID",
-		Create:    true,
-	},
-	{
-		ModelName: "Supplement",
-		PmName:    "Supplement",
-		PK:        "SupplementID",
-	},
-	{
-		ModelName: "Transaction",
-		PmName:    "Transaction",
-		PK:        "TransactionID",
-		Create:    true,
-	},
-	{
-		ModelName: "TransactionType",
-		PmName:    "TransactionType",
-		PK:        "TransactionTypeID",
-		//Create:    true,
-	},
-	{
-		ModelName: "User",
-		PmName:    "User",
-		PK:        "UserID",
-		Create:    true,
-	},
-}
-
-var resolverModels = []struct {
-	SingularModelName string
-	PluralModelName   string
-	Create            bool // Build a create function
-	Update            bool // Build an update function
-	PrepareCreate     bool // Provide a prepare function for you (set to false if you want to set one yourself)
-	Query             bool // Creates a queryX function used for pagination via a connections type method
-}{
-	{
-		SingularModelName: "Client",
-		PluralModelName:   "Clients",
-		Create:            true,
-		Update:            true,
-		PrepareCreate:     true,
-		Query:             true,
-	},
-	{
-		SingularModelName: "Invoice",
-		PluralModelName:   "Invoices",
-		Create:            true,
-		Update:            true,
-		Query:             true,
-	},
-	{
-		SingularModelName: "Note",
-		PluralModelName:   "Notes",
-		Update:            true,
-		PrepareCreate:     true,
-	},
-	{
-		SingularModelName: "Supplier",
-		PluralModelName:   "Suppliers",
-		Create:            true,
-		Update:            true,
-		PrepareCreate:     true,
-		Query:             true,
-	},
-	{
-		SingularModelName: "Transaction",
-		PluralModelName:   "Transactions",
-		Create:            true,
-		Update:            true,
-		PrepareCreate:     true,
-		Query:             true,
-	},
 }
 
 // Link Used for auto-generating links between particular items
@@ -343,16 +172,14 @@ func concat(vals ...string) string {
 // Task We go through a few folders, deleting generated files and running the template
 type Task struct {
 	Folder string
-	Build  func(folder string) error
+	Build  func(config Config, folder string) error
 }
 
-var tasks []Task
-
-func main() {
+func generateFiles(config Config, tasks []Task) {
 	// Set up the tasks:
 	//tasks = append(tasks, Task{Folder: "authorisation", Build: authorisationBuild})
-	tasks = append(tasks, Task{Folder: "loaders/postgres", Build: postgresBuild})
-	tasks = append(tasks, Task{Folder: "resolvers", Build: resolverBuild})
+	//tasks = append(tasks, Task{Folder: "loaders/postgres", Build: postgresBuild})
+	//tasks = append(tasks, Task{Folder: "resolvers", Build: resolverBuild})
 
 	for _, t := range tasks {
 		// Delete ALL previously generated files
@@ -362,7 +189,7 @@ func main() {
 			log.Printf("Failed to delete existing files in %s with '%s', but continuing...", t.Folder, err)
 		}
 
-		die(t.Build(t.Folder))
+		die(t.Build(config, t.Folder))
 	}
 }
 
@@ -398,9 +225,9 @@ func authorisationBuild(folder string) error {
 	return goImports(fileName)
 }
 
-func postgresBuild(folder string) error {
+func postgresBuild(config Config, folder string) error {
 	// Core models
-	for _, b := range postgresModels {
+	for _, b := range config.Generate.Postgres {
 		fileName := fmt.Sprintf("gen_%s.go", kace.Snake(b.ModelName))
 
 		if len(folder) > 0 {
@@ -414,12 +241,14 @@ func postgresBuild(folder string) error {
 		}
 
 		err = postgresTemplate.Execute(f, struct {
+			Config    Config
 			Timestamp time.Time
 			ModelName string
 			PmName    string
 			PK        string
 			Create    bool
 		}{
+			Config:    config,
 			Timestamp: time.Now(),
 			ModelName: b.ModelName,
 			PmName:    b.PmName,
@@ -452,9 +281,11 @@ func postgresBuild(folder string) error {
 	}
 
 	err = linkTemplate.Execute(f, struct {
+		Config    Config
 		Timestamp time.Time
 		Models    []Link
 	}{
+		Config:    config,
 		Timestamp: time.Now(),
 		Models:    links,
 	})
@@ -472,8 +303,10 @@ func postgresBuild(folder string) error {
 	return nil
 }
 
-func resolverBuild(folder string) error {
-	for _, b := range resolverModels {
+func resolverBuild(config Config, folder string) error {
+	log.Printf("Creating resolver files")
+	for _, b := range config.Generate.Resolvers {
+		log.Printf("...%s", b.SingularModelName)
 		fileName := fmt.Sprintf("gen_%s.go", kace.Snake(b.SingularModelName))
 
 		if len(folder) > 0 {
@@ -487,6 +320,7 @@ func resolverBuild(folder string) error {
 		}
 
 		err = resolverTemplate.Execute(f, struct {
+			Config          Config
 			Timestamp       time.Time
 			ModelName       string
 			PluralModelName string
@@ -495,6 +329,7 @@ func resolverBuild(folder string) error {
 			PrepareCreate   bool
 			Query           bool
 		}{
+			Config:          config,
 			Timestamp:       time.Now(),
 			ModelName:       b.SingularModelName,
 			PluralModelName: b.PluralModelName,
@@ -530,9 +365,10 @@ var authorisationTemplate = template.Must(template.New("").Funcs(templateFuncs).
 package authorisation
 
 import (
-	"github.com/replaceme/api/loaders"
-	"github.com/replaceme/api/models"
-	"github.com/replaceme/api/opa"
+	"{{.Config.PackageName}}/loader"
+	"{{.Config.PackageName}}/models"
+	"{{.Config.PackageName}}/gnorm/dbl"
+	"github.com/episub/estack/opa"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -586,10 +422,10 @@ var postgresTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse
 package postgres
 
 import (
-	"github.com/replaceme/api/models"
-	"github.com/replaceme/api/validate"
-	"github.com/replaceme/gnorm/gnorm"
-	"github.com/replaceme/gnorm/gnorm/pm"
+	"{{.Config.PackageName}}/models"
+	"{{.Config.PackageName}}/gnorm"
+	"{{.Config.PackageName}}/gnorm/dbl"
+	"github.com/episub/estack/validate"
 	"github.com/codemodus/kace"
 	opentracing "github.com/opentracing/opentracing-go"
 )
@@ -602,7 +438,7 @@ type {{.ModelName}}FetchRequest struct {
 
 // {{.ModelName}}FetchReply A reply with the requested object or an error
 type {{.ModelName}}FetchReply struct {
-	{{.ModelName}} pm.{{.ModelName}}Full
+	{{.ModelName}} dbl.{{.ModelName}}Full
 	Error  error
 }
 
@@ -633,7 +469,7 @@ func (l *Loader) get{{.ModelName}}(ctx context.Context, id string, db gnorm.DB) 
 	return
 }
 
-func (l *Loader) batchedGet{{.ModelName}}(id string, db gnorm.DB) (o pm.{{.PmName}}Full, err error) {
+func (l *Loader) batchedGet{{.ModelName}}(id string, db gnorm.DB) (o dbl.{{.PmName}}Full, err error) {
 	{{camel .ModelName}}MX.Lock()
 	if !{{camel .ModelName}}Initialised {
 		err = fmt.Errorf("batchedGet{{.ModelName}} not initialised.  Add 'go loader.run{{.ModelName}}Batcher()' to init")
@@ -667,7 +503,7 @@ func (l *Loader) run{{.ModelName}}Batcher() {
 
 		{{camel .ModelName}}MX.Lock()
 		if len({{camel .ModelName}}FRs) > 0 {
-			var {{camel .ModelName}}s []pm.{{.PmName}}Full
+			var {{camel .ModelName}}s []dbl.{{.PmName}}Full
 			var err error
 			var ids []string
 
@@ -676,7 +512,7 @@ func (l *Loader) run{{.ModelName}}Batcher() {
 			}
 
 			log.Printf("Batched {{camel .ModelName}} size: %d", len({{camel .ModelName}}FRs))
-			{{camel .ModelName}}s, err = pm.GetMulti{{.PmName}}Full(context.Background(), l.pool, ids)
+			{{camel .ModelName}}s, err = dbl.GetMulti{{.PmName}}Full(context.Background(), l.pool, ids)
 
 		OUTER:
 			for _, r := range {{camel .ModelName}}FRs {
@@ -713,7 +549,7 @@ func (l *Loader) GetAll{{.ModelName}}(ctx context.Context, filter models.Filter)
 		filter.Order.Descending = !descending
 	}
 
-	r, hasMore, count, err := pm.QueryPaginated{{.PmName}}Full(ctx, l.pool, filter.Cursor, filter.Where, filter.Order, filter.Count)
+	r, hasMore, count, err := dbl.QueryPaginated{{.PmName}}Full(ctx, l.pool, filter.Cursor, filter.Where, filter.Order, filter.Count)
 
 	if err != nil {
 		return
@@ -768,7 +604,7 @@ func (l *Loader) Update{{.ModelName}}(ctx context.Context, id string, u map[stri
 
 // update{{.ModelName}} Updates {{.ModelName}} based on provided changes using provided db connection
 func (l *Loader) update{{.ModelName}}(ctx context.Context, db gnorm.DB, id string, u map[string]interface{}) error {
-	{{camel .ModelName}}, err := pm.Get{{.PmName}}Full(ctx, l.pool, id)
+	{{camel .ModelName}}, err := dbl.Get{{.PmName}}Full(ctx, l.pool, id)
 
 	if err != nil {
 		return err
@@ -799,13 +635,13 @@ func (l *Loader) update{{.ModelName}}(ctx context.Context, db gnorm.DB, id strin
 		return nil
 	}
 
-	_, err = pm.Upsert{{.PmName}}Full(ctx, db, {{camel .ModelName}})
+	_, err = dbl.Upsert{{.PmName}}Full(ctx, db, {{camel .ModelName}})
 
 	return sanitiseError(err)
 }
 
 // create{{.PmName}} Creates {{.PmName}} from given input
-func (l *Loader) create{{.PmName}}(ctx context.Context, db DB, i map[string]interface{}) (o pm.{{.PmName}}Full, err error) {
+func (l *Loader) create{{.PmName}}(ctx context.Context, db DB, i map[string]interface{}) (o dbl.{{.PmName}}Full, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "create{{.PmName}}")
 	defer span.Finish()
 
@@ -832,7 +668,7 @@ func (l *Loader) create{{.PmName}}(ctx context.Context, db DB, i map[string]inte
 		return o, nil
 	}
 
-	o, err = pm.Upsert{{.PmName}}Full(ctx, db, o)
+	o, err = dbl.Upsert{{.PmName}}Full(ctx, db, o)
 
 	return o, sanitiseError(err)
 }
@@ -846,11 +682,12 @@ var linkTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse(
 package postgres
 
 import (
-	"github.com/replaceme/api/loaders"
-	"github.com/replaceme/gnorm/gnorm"
-	"github.com/replaceme/gnorm/gnorm/pm"
-	"github.com/replaceme/api/models"
-	"github.com/replaceme/api/opa"
+	"{{.Config.PackageName}}/models"
+	"{{.Config.PackageName}}/loader"
+	"{{.Config.PackageName}}/gnorm"
+	"{{.Config.PackageName}}/gnorm/dbl"
+	"github.com/episub/estack/validate"
+	"github.com/episub/estack/opa"
 	opentracing "github.com/opentracing/opentracing-go"
 )
 
@@ -861,12 +698,12 @@ import (
 // Link{{$c.Model1}}{{$c.Model2}} Links '{{$c.Model1}}' to {{$c.Model2}}'
 func (l *Loader) Link{{$c.Model1}}{{$c.Model2}}(ctx context.Context, {{camel $m1}}ID string, {{camel $m2}}ID string, link bool) (bool, error) {
 	if link {
-		var clink pm.{{$m1}}{{$m2}}
+		var clink dbl.{{$m1}}{{$m2}}
 
 		clink.{{$c.Model1}}ID{{$c.Model1}} = {{camel $c.Model1}}ID
 		clink.{{$c.Model2}}ID{{$c.Model2}} = {{camel $c.Model2}}ID
 
-		_, err := pm.Upsert{{$m1}}{{$m2}}(ctx, l.pool, clink)
+		_, err := dbl.Upsert{{$m1}}{{$m2}}(ctx, l.pool, clink)
 
 		// Sanitise our output, and log errors if needed:
 		err = sanitiseError(err)
@@ -875,7 +712,7 @@ func (l *Loader) Link{{$c.Model1}}{{$c.Model2}}(ctx context.Context, {{camel $m1
 	}
 
 	// !link, therefore delete any such connection:
-	res, err := l.pool.Exec("DELETE FROM pm.{{snake $full}} WHERE {{snake $c.Model1}}_id_{{snake $c.Model1}}=$1 AND {{snake $c.Model2}}_id_{{snake $c.Model2}}=$2", {{camel $m1}}ID, {{camel $m2}}ID)
+	res, err := l.pool.Exec("DELETE FROM dbl.{{snake $full}} WHERE {{snake $c.Model1}}_id_{{snake $c.Model1}}=$1 AND {{snake $c.Model2}}_id_{{snake $c.Model2}}=$2", {{camel $m1}}ID, {{camel $m2}}ID)
 
 	err = sanitiseError(err)
 	if err == nil && res.RowsAffected() == 0 {
@@ -892,10 +729,10 @@ var resolverTemplate = template.Must(template.New("").Funcs(templateFuncs).Parse
 package resolvers
 
 import (
-	"github.com/replaceme/api/loaders"
-	"github.com/replaceme/api/models"
-	"github.com/replaceme/api/opa"
-	"github.com/replaceme/gnorm/gnorm"
+	"{{.Config.PackageName}}/models"
+	"{{.Config.PackageName}}/loader"
+	"{{.Config.PackageName}}/gnorm"
+	"github.com/episub/estack/opa"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/vektah/gqlparser/gqlerror"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -964,31 +801,6 @@ func (r *mutationResolver) Create{{.ModelName}}(ctx context.Context, i map[strin
 func query{{.PluralModelName}}(ctx context.Context, first *int, after *string, last *int, before *string, cf *models.{{.ModelName}}Filter, sortField *models.{{.ModelName}}Sort, sortDirection *models.SortDirection, where []gnorm.WhereClause) (o models.{{.PluralModelName}}Connection, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "query{{.PluralModelName}}")
 	defer span.Finish()
-//	limit, err := opa.GetInt(ctx, "data.api.limits.{{camel .PluralModelName}}ConnectionLimit", map[string]interface{}{})
-//
-//	if err != nil {
-//		return
-//	}
-//
-//	if (first != nil && int64(*first) > limit) || (last != nil && int64(*last) > limit) {
-//		err = fmt.Errorf("Cannot request more than %d entries for query", limit)
-//		return
-//	}
-//
-//
-//	// Use the policy defined base amount if none provided
-//	if (first == nil) && (last == nil) {
-//		var baseLimit int64
-//		baseLimit, err = opa.GetInt(ctx, "data.api.limits.{{camel .PluralModelName}}ConnectionCount", map[string]interface{}{})
-//
-//		if err != nil {
-//			return
-//		}
-//
-//		intLimit := int(baseLimit)
-//		first = &intLimit
-//		last = &intLimit
-//	}
 
 	f := models.NewFilter(first, after, last, before, sortDirection)
 
