@@ -6,7 +6,7 @@ CREATE TABLE "user" (
 
 CREATE TABLE todo (
  todo_id serial PRIMARY KEY,
- content VARCHAR,
+ content VARCHAR NOT NULL,
  done BOOLEAN NOT NULL DEFAULT false,
  user_id INTEGER NOT NULL,
  FOREIGN KEY (user_id) REFERENCES "user" (user_id)

@@ -24,8 +24,9 @@ type ResolverGenerate struct {
 
 // PostgresGenerate Which postgres helper functions to generate code for
 type PostgresGenerate struct {
-	ModelName string `yaml:"modelName"`    // Name of model used by GraphQL
-	PmName    string `yaml:"postgresName"` // Name of postgres data object
-	PK        string `yaml:"primaryKey"`   // Go struct for database name for primary key field
-	Create    bool   `yaml:"create"`       // Generate create/update related functions
+	ModelName      string `yaml:"modelName"`      // Name of model used by GraphQL
+	PmName         string `yaml:"postgresName"`   // Name of postgres data object
+	PK             string `yaml:"primaryKey"`     // Go struct for database name for primary key field
+	PrimaryKeyType string `yaml:"primaryKeyType"` // Go type for primary key
+	Create         bool   `yaml:"create"`         // Generate create/update related functions
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/episub/pqt"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/gofrs/uuid"
+	"github.com/opentracing/opentracing-go/log"
 )
 
 {{$table := .DBName -}}
@@ -18,7 +19,7 @@ import (
 // {{.Name}} represents a row from '{{ $table }}'.
 type {{.Name}} struct {
 {{- range .Columns }}
-	{{ .Name }} {{ .Type }}  // {{ .DBName }}
+	{{ .Name }} {{ .Type }} `json:"{{camel .Name}}"` // {{ .DBName }}
 {{- end }}
 }
 

@@ -266,17 +266,24 @@ generate:
   - modelName: "Todo"
     postgresName: "Todo"
     primaryKey: "TodoID"
+    primaryKeyType: "int"
 `
 
 var initCmd = cli.Command{
 	Name:  "init",
 	Usage: "create a new estack project",
-	Flags: []cli.Flag{},
+	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "package",
+			Value: "github.com/example/replace",
+			Usage: "specify the name of the package for this project",
+		},
+	},
 	Action: func(ctx *cli.Context) {
 		_ = os.Mkdir("migrations", 0755)
 		_ = os.Mkdir("static", 0755)
 		_ = os.Mkdir("templates", 0755)
-		_ = os.Mkdir("loaders", 0755)
+		_ = os.Mkdir("loader", 0755)
 
 		createFile("schema.graphql", gqlSchemaDefault)
 		createFile("gqlgen.yml", gqlConfigDefault)
@@ -286,6 +293,8 @@ var initCmd = cli.Command{
 		createFile("config.yml", configSample)
 		config := generateGQL()
 		codegen.GenerateServer(*config, "server.go")
+		createFileFromTemplate(ctx.String("package"), "server.go", "server.go")
+		createFileFromTemplate(ctx.String("package"), "loader/init.gotmpl", "loader/init.go")
 	},
 }
 
@@ -299,6 +308,21 @@ func createFile(filename string, contents string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, fmt.Sprintf("unable to write file %s: %s", filename, err))
 		os.Exit(1)
+	}
+}
+
+// createFileFromTemplate input is the filename (under cmd/static) to use as template, and output  isi the file name to create
+func createFileFromTemplate(packageName string, input string, output string) {
+	t := loadTemplateFromFile(input)
+
+	f, err := os.Create(output)
+	if err != nil {
+		panic(err)
+	}
+	err = t.Execute(f, packageName)
+
+	if err != nil {
+		panic(err)
 	}
 }
 
