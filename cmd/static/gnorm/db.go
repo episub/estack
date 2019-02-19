@@ -4,6 +4,7 @@ package gnorm
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -92,12 +93,22 @@ func (in inClause) String(idx *int) string {
 		return "false"
 	}
 	ret := in.field + " in ( VALUES "
+
+	// We may need to cast the type -- e.g., string to uuid
+	var cast string
+	switch reflect.TypeOf(in.values[0]).String() {
+	case "int":
+		cast = "::int"
+	case "string":
+		cast = "::uuid"
+	}
+
 	for x := range in.values {
 		if x != 0 {
 			ret += ", "
 		}
 		// TODO: Don't hard code 'uuid', but instead set it somewhere else, such as inClause, specifying the correct field type?
-		ret += "($" + strconv.Itoa(*idx) + "::uuid)"
+		ret += "($" + strconv.Itoa(*idx) + cast + ")"
 		(*idx)++
 	}
 	ret += ")"
