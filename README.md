@@ -1,3 +1,4 @@
+
 estack is used to initialise and manage a project for Episub's stack.  For now, this involves the setting up of a repository to handle the server side of things.
 
 This framework makes use of these projects (among others) to auto-generate some key code and provide some key functionality:
@@ -11,6 +12,8 @@ This framework is designed to allow you to use as much or as little as you want.
 # TODO
   
 * Update all return values in `cmd/static/loader/gen.gotmpl`  to return sanitised errors
+* have config setting to specify copying of templates every gen time
+* Allow modification of all the template files, like with gnorm
 
 # Initialise Project
 
