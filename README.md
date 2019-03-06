@@ -11,9 +11,13 @@ This framework is designed to allow you to use as much or as little as you want.
 
 # TODO
   
+* Batched queries:
+ - Don't have db as a parameter when it's not even used
+ - Have a non-batched option that can be used for transactions
 * Update all return values in `cmd/static/loader/gen.gotmpl`  to return sanitised errors
 * have config setting to specify copying of templates every gen time
 * Allow modification of all the template files, like with gnorm
+* Instead of map, use a structural, with a string array naming the fields that are provided or to be updated, to allow us to distinguish between 'no change' vs 'null this field'.
 
 # Initialise Project
 
