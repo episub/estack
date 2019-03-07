@@ -18,6 +18,7 @@ This framework is designed to allow you to use as much or as little as you want.
 * have config setting to specify copying of templates every gen time
 * Allow modification of all the template files, like with gnorm
 * Instead of map, use a structural, with a string array naming the fields that are provided or to be updated, to allow us to distinguish between 'no change' vs 'null this field'.
+* For inherited tables, have gnorm generate code that reuses objects from the parent table in child tables.  This will make it easier to reuse tests, hydration, etc, instead of duplicating
 
 # Initialise Project
 
