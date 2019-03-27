@@ -97,7 +97,7 @@ Start the server back up again, and try the query again.  You should now see it 
 
 # Database
 
-This project by default separates database functions (gnorm/dbl folder) from GraphQL models.  The best database designs do not necessarily describe or carve up the world in the way that makes sense for your GraphQL API.  These are separate ways of representing the world, and it may in some cases be useful to separate them.  For example, while your database may be fully normalised, you may want the GraphQL to display a de-normalised model.  Furthermore, you may decide one day that you want to switch out your storage solution, and it will help to not have the resolvers tightly coupled to the storage system.  So we prefer to use the 'loader' package to contain functions that don't leak the database, and interact through that.  The job of the 'loader' package is to translate between the GraphQL model of the world and our database's model of the world.
+This project by default separates database functions (gnorm/dbl folder) from GraphQL models.  The best database designs do not necessarily describe or carve up the world in the way that makes sense for your GraphQL API.  These are separate ways of representing the world, and it may in some cases be useful to keep them separate.  For example, while your database may be fully normalised, you may want the GraphQL to display a de-normalised model.  Furthermore, you may decide one day that you want to switch out your storage solution, and it will help to not have the resolvers tightly coupled to the storage system.  So we prefer to use the 'loader' package to contain functions that don't leak the database to the resolvers, and interact through that.  The job of the 'loader' package is to translate between the GraphQL model of the world and our database's model of the world.
 
 Let's pull our todos from the database rather than hard coding the reply.  Update your config to set it to auto-generate some query related functions.
 
@@ -170,11 +170,11 @@ DB_USER=estack DB_PASS=estack go run server.go
 
 Try your query again, and it should now return the results from the database!
 
-It may seem more cumbersome to have to translate between the database and GraphQL, but this extra burden comes with the benefit of clear separation of concerns that should be separate.  It allows us to break the symmetry where needed, and allows a much more flexible design.
+It may seem more cumbersome to have to translate between the database and GraphQL, but this extra burden comes with the benefit of clear separation of concerns that should be separate.  It allows us to break the symmetry between database model and GraphQL model where needed, and allows a much more flexible design.
 
 ## User
 
-The above works, but we won't be able to fetch the user, and being able to do that is one of the main benefits of GraphQL.  To implement this requires us to override the auto-generated models so that we can store the user ID rather than the full user (which currently does not get fetch).  In models/generated.go we can find the auto-created Todo struct.  Move that into its own file `models/todo.go`, and change User to UserID string:
+The above works, but we won't be able to fetch the user, and being able to traverse the graph to do this is one of the main benefits of GraphQL.  To implement this requires us to override the auto-generated models so that we can store the user ID rather than the full user (which currently does not get fetched from the database).  In models/generated.go we can find the auto-created Todo struct.  Move that into its own file `models/todo.go`, and change User to UserID string:
 
 ```
 package models
@@ -183,7 +183,7 @@ type Todo struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
 	Done    bool   `json:"done"`
-	UserID  string `json:"user"`
+	UserID  string
 }
 ```
 
