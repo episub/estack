@@ -29,18 +29,27 @@ var genCmd = cli.Command{
 	Usage: "generate estack files",
 	Flags: []cli.Flag{
 		cli.StringFlag{Name: "config, c", Usage: "the config filename"},
+		cli.StringFlag{Name: "folder", Usage: "where to create the project"},
 	},
 	Action: func(ctx *cli.Context) {
-		// Load config.yml
-		input, err := ioutil.ReadFile("config.yml")
+		_ = os.Chdir(ctx.String("folder"))
+
+		// Ensure package name is loaded:
+		err := loadPackageName()
 		if err != nil {
-			panic(err)
+			exit(err)
+		}
+
+		// Load config.yaml
+		input, err := ioutil.ReadFile(filePath(ctx, "config.yaml"))
+		if err != nil {
+			exit(err)
 		}
 
 		var config Config
 		err = yaml.Unmarshal(input, &config)
 		if err != nil {
-			panic(err)
+			exit(err)
 		}
 		log.Printf("Config:\n%+v", config)
 
@@ -53,10 +62,10 @@ var genCmd = cli.Command{
 		copyTemplate("templates/schema.gotmpl", "templates/schema.gotmpl")
 
 		generateGnorm()
-		runCommand("mv gnorm/Public/tables gnorm/dbl")
-		runCommand("rm -rf gnorm/Public")
-		runCommand("goimports -w gnorm/.")
-		runCommand("goimports -w gnorm/dbl/.")
+		runCommand(fmt.Sprintf("mv %s %s", "gnorm/Public/tables", "gnorm/dbl"))
+		runCommand(fmt.Sprintf("rm -rf %s", "gnorm/Public"))
+		runCommand(fmt.Sprintf("goimports -w %s", "gnorm/."))
+		runCommand(fmt.Sprintf("goimports -w %s", "gnorm/dbl/."))
 
 		copyTemplate("gnorm/db.go", "gnorm/db.go")
 		copyTemplate("gnorm/where.go", "gnorm/where.go")
@@ -66,7 +75,7 @@ var genCmd = cli.Command{
 		tasks = append(tasks, Task{Folder: "loader", Build: postgresBuild})
 		tasks = append(tasks, Task{Folder: "models", Build: modelsBuild})
 		tasks = append(tasks, Task{Folder: "resolvers", Build: resolverBuild})
-		generateFiles(config, tasks)
+		generateFiles(ctx, config, tasks)
 
 		// Recreate GraphQL Code
 		_ = generateGQL(ctx)
@@ -169,18 +178,19 @@ type Task struct {
 	Build  func(config Config, folder string) error
 }
 
-func generateFiles(config Config, tasks []Task) {
+func generateFiles(ctx *cli.Context, config Config, tasks []Task) {
 	// Set up the tasks:
 
 	for _, t := range tasks {
+		path := filePath(ctx, t.Folder)
 		// Delete ALL previously generated files
-		cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("rm %s/gen_*.go", t.Folder))
+		cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("rm %s/gen_*.go", path))
 		err := cmd.Run()
 		if err != nil {
-			log.Printf("Failed to delete existing files in %s with '%s', but continuing...", t.Folder, err)
+			log.Printf("Failed to delete existing files in %s with '%s', but continuing...", path, err)
 		}
 
-		die(t.Build(config, t.Folder))
+		die(t.Build(config, path))
 	}
 }
 
@@ -404,7 +414,7 @@ var {{.}}Input = func(ctx context.Context, input map[string]interface{}, i model
 func {{.}}Fetch(ctx context.Context, id string) (*models.{{.}}, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "{{.}}Fetch")
 	defer span.Finish()
-	o, err := loaders.Current.Get{{.}}(ctx, id)
+	o, err := loader.Get{{.}}(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -521,13 +531,13 @@ func (l *PostgresLoader) Link{{$c.Model1}}{{$c.Model2}}(ctx context.Context, {{c
 //		return nil, fmt.Errorf("No fields were permitted to be updated")
 //	}
 //
-//	err = loaders.Current.Update{{.ModelName}}(ctx, id, changes)
+//	err = loader.Update{{.ModelName}}(ctx, id, changes)
 //
 //	if err != nil {
 //		return nil, err
 //	}
 //
-//	obj, err := loaders.Current.Get{{.ModelName}}(ctx, id)
+//	obj, err := loader.Get{{.ModelName}}(ctx, id)
 //
 //	return &obj, err
 //}
@@ -546,13 +556,13 @@ func (l *PostgresLoader) Link{{$c.Model1}}{{$c.Model2}}(ctx context.Context, {{c
 //		return nil, err
 //	}
 //
-//	id, err := loaders.Current.Create{{.ModelName}}(ctx, i)
+//	id, err := loader.Create{{.ModelName}}(ctx, i)
 //
 //	if err != nil {
 //		return nil, err
 //	}
 //
-//	obj, err := loaders.Current.Get{{.ModelName}}(ctx, id)
+//	obj, err := loader.Get{{.ModelName}}(ctx, id)
 //	return &obj, err
 //}
 //{{end}}
@@ -587,7 +597,7 @@ func (l *PostgresLoader) Link{{$c.Model1}}{{$c.Model2}}(ctx context.Context, {{c
 //
 //	f.Where = where
 //
-//	r, pi, count, err := loaders.Current.GetAll{{.ModelName}}(ctx, f)
+//	r, pi, count, err := loader.GetAll{{.ModelName}}(ctx, f)
 //
 //	if err != nil {
 //		return o, err

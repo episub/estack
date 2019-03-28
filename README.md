@@ -1,4 +1,3 @@
-
 estack is used to initialise and manage a project for Episub's stack.  For now, this involves the setting up of a repository to handle the server side of things.
 
 This framework makes use of these projects (among others) to auto-generate some key code and provide some key functionality:
@@ -23,27 +22,19 @@ This framework is designed to allow you to use as much or as little as you want.
 
 # Initialise Project
 
-This should be used only once.  It will set up a new project with fresh configs.  Create a folder for your new repository, and the following file inside 'scripts/estack.go':
+This project relies on using Go modules, so you will need Go 1.11 or higher installed, and use a folder outside of $GOPATH.  Initialisation should be run only once.  It will set up a new project with fresh configs.  Create a folder for your new repository, and initialise your modules file:
 
 ```
-// +build ignore
-
-package main
-
-import "github.com/episub/estack/cmd"
-
-func main() {
-	cmd.Execute()
-}
+go mod init github.com/example/project
 ```
 
-Run `dep ensure`  to vendor the appropriate libraries.  Once this is ready, you can initialise your project:
+Now we're ready to generate our project (optionally specify --folder=<folder>):
 
 ```
-go run scripts/estack.go init --package=github.com/example/yourname
+go run github.com/episub/estack init --package=github.com/example/project
 ```
 
-Your base project is now ready, including a sample SQL file for PostgreSQL in the migrations folder, and a schema for GraphQL in schema.graphql.  Let's use the base project.  The key to the episub stack is auto generated code.  When changes are made to key files, we must re-generate our code.
+Your base project is now ready, including a sample SQL file for PostgreSQL in the migrations folder, and a schema for GraphQL in schema.graphql.  Let's use the base project.  The key to the Episub stack is auto generated code.  When changes are made to key files, we must re-generate our code.
 
 Before we can do this, we need the database running so that we can connect to the database and create the relevant DB code:
 
@@ -195,7 +186,7 @@ models:
     model: github.com/episub/stacktest/models.Todo
 ```
 
-Update `config.yml` to generate user related functions:
+Update `config.yaml` to generate user related functions:
 
 ```
 packageName: "github.com/episub/stacktest"

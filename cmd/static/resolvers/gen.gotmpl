@@ -36,13 +36,13 @@ func (r *mutationResolver) Update{{.ModelName}}(ctx context.Context, id string, 
 		return nil, fmt.Errorf("No fields were permitted to be updated")
 	}
 
-	err = loaders.Current.Update{{.ModelName}}(ctx, id, changes)
+	err = loader.Update{{.ModelName}}(ctx, id, changes)
 
 	if err != nil {
 		return nil, err
 	}
 
-	obj, err := loaders.Current.Get{{.ModelName}}(ctx, id)
+	obj, err := loader.Get{{.ModelName}}(ctx, id)
 
 	return &obj, err
 }
@@ -61,13 +61,13 @@ func (r *mutationResolver) Create{{.ModelName}}(ctx context.Context, i map[strin
 		return nil, err
 	}
 
-	id, err := loaders.Current.Create{{.ModelName}}(ctx, i)
+	id, err := loader.Create{{.ModelName}}(ctx, i)
 
 	if err != nil {
 		return nil, err
 	}
 
-	obj, err := loaders.Current.Get{{.ModelName}}(ctx, id)
+	obj, err := loader.Get{{.ModelName}}(ctx, id)
 	return &obj, err
 }
 {{end}}
@@ -102,7 +102,7 @@ func query{{.PluralModelName}}(ctx context.Context, first *int, after *string, l
 
 	f.Where = where
 
-	r, pi, count, err := loaders.Current.GetAll{{.ModelName}}(ctx, f)
+	r, pi, count, err := loader.GetAll{{.ModelName}}(ctx, f)
 
 	if err != nil {
 		return o, err

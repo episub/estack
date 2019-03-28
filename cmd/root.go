@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
+	"regexp"
 	"runtime"
 	"text/template"
 
@@ -13,6 +16,9 @@ import (
 	// Required since otherwise dep will prune away these unused packages before codegen has a chance to run
 	_ "github.com/99designs/gqlgen/handler"
 )
+
+var packageName string
+var packageRx = regexp.MustCompile(`^module ([a-zA-Z0-9.\-\/]+)$`)
 
 // Execute Run estack
 func Execute() {
@@ -56,4 +62,36 @@ func loadTemplateFromFile(input string) *template.Template {
 	}
 
 	return template.Must(template.New("").Funcs(templateFuncs).Parse(string(source)))
+}
+
+// loadPackageName Grabs the package/module name for this project from go.mod
+func loadPackageName() error {
+	if len(packageName) > 0 {
+		return nil
+	}
+	file, err := os.Open("go.mod")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	scanner.Scan()
+	line := scanner.Text()
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// Grab it from first line:
+	matches := packageRx.FindStringSubmatch(line)
+	if len(matches) != 2 {
+		log.Printf("Line: %s", line)
+		return fmt.Errorf("Could not find module name in first line of go.mod.")
+	}
+
+	packageName = matches[1]
+
+	log.Printf("package name: %s", packageName)
+
+	return nil
 }

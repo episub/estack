@@ -1,6 +1,6 @@
 package cmd
 
-// Config Store values read from config.yml file
+// Config Store values read from config.yaml file
 type Config struct {
 	PackageName string   `yaml:"packageName"`
 	Generate    Generate `yaml:"generate"`
