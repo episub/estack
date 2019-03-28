@@ -10,7 +10,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/handler"
 	"github.com/caarlos0/env"
-	api "{{.}}/graph/generated"
+	api "{{.}}/graph"
 	"{{.}}/resolvers"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"

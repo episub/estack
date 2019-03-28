@@ -27,7 +27,9 @@ var filterTemplate *template.Template
 var genCmd = cli.Command{
 	Name:  "generate",
 	Usage: "generate estack files",
-	Flags: []cli.Flag{},
+	Flags: []cli.Flag{
+		cli.StringFlag{Name: "config, c", Usage: "the config filename"},
+	},
 	Action: func(ctx *cli.Context) {
 		// Load config.yml
 		input, err := ioutil.ReadFile("config.yml")
@@ -67,7 +69,7 @@ var genCmd = cli.Command{
 		generateFiles(config, tasks)
 
 		// Recreate GraphQL Code
-		_ = generateGQL()
+		_ = generateGQL(ctx)
 	},
 }
 

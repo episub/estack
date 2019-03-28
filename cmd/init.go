@@ -6,23 +6,56 @@ import (
 	"os"
 	"strings"
 
-	"github.com/99designs/gqlgen/codegen"
+	"github.com/99designs/gqlgen/api"
+	"github.com/99designs/gqlgen/codegen/config"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
 var gqlConfigDefault = `
-schema: schema.graphql
+schema:
+- schema.graphql
 exec:
-  filename: graph/generated/generated.go
-  package: generated
+  filename: graph/generated.go
+  package: graph
 model:
-  filename: models/generated.go
+  filename: models/models_gen.go
   package: models
 resolver:
   filename: resolvers/resolver.go
   package: resolvers
   type: Resolver
+`
+
+var schemaDefault = `
+# GraphQL schema example
+#
+# https://gqlgen.com/getting-started/
+
+type Todo {
+  id: ID!
+  text: String!
+  done: Boolean!
+  user: User!
+}
+
+type User {
+  id: ID!
+  name: String!
+}
+
+type Query {
+  todos: [Todo!]!
+}
+
+input NewTodo {
+  text: String!
+  userId: String!
+}
+
+type Mutation {
+  createTodo(input: NewTodo!): Todo!
+}
 `
 
 var gqlSchemaDefault = `
@@ -278,6 +311,9 @@ var initCmd = cli.Command{
 			Value: "github.com/example/replace",
 			Usage: "specify the name of the package for this project",
 		},
+		cli.StringFlag{Name: "config, c", Usage: "the config filename"},
+		cli.StringFlag{Name: "schema", Usage: "where to write the schema stub to", Value: "schema.graphql"},
+		cli.StringFlag{Name: "server", Usage: "where to write the server stub to", Value: "server/server.go"},
 	},
 	Action: func(ctx *cli.Context) {
 		_ = os.Mkdir("migrations", 0755)
@@ -291,8 +327,8 @@ var initCmd = cli.Command{
 		copyTemplate("migrations/001-base.sql", "migrations/001-base.sql")
 		createFile("gnorm.toml", gnormDefault)
 		createFile("config.yml", configSample)
-		config := generateGQL()
-		codegen.GenerateServer(*config, "server.go")
+
+		generateGQL(ctx)
 		createFileFromTemplate(ctx.String("package"), "server.go", "server.go")
 		createFileFromTemplate(ctx.String("package"), "loader/init.gotmpl", "loader/init.go")
 	},
@@ -326,38 +362,30 @@ func createFileFromTemplate(packageName string, input string, output string) {
 	}
 }
 
-func generateGQL() *codegen.Config {
-	var config *codegen.Config
+// GenerateGQL Generates gql stuff
+func generateGQL(ctx *cli.Context) *config.Config {
+	var cfg *config.Config
 	var err error
-
-	config, err = codegen.LoadConfigFromDefaultLocations()
-	if os.IsNotExist(errors.Cause(err)) {
-		config = codegen.DefaultConfig()
-	} else if err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
-	}
-
-	for _, filename := range config.SchemaFilename {
-		var schemaRaw []byte
-		schemaRaw, err = ioutil.ReadFile(filename)
+	if configFilename := ctx.String("config"); configFilename != "" {
+		cfg, err = config.LoadConfig(configFilename)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "unable to open schema: "+err.Error())
+			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-		config.SchemaStr[filename] = string(schemaRaw)
+	} else {
+		cfg, err = config.LoadConfigFromDefaultLocations()
+		if os.IsNotExist(errors.Cause(err)) {
+			cfg = config.DefaultConfig()
+		} else if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(2)
+		}
 	}
 
-	if err = config.Check(); err != nil {
-		fmt.Fprintln(os.Stderr, "invalid config format: "+err.Error())
-		os.Exit(1)
-	}
-
-	err = codegen.Generate(*config)
-	if err != nil {
+	if err = api.Generate(cfg); err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(2)
+		os.Exit(3)
 	}
 
-	return config
+	return cfg
 }
