@@ -2,13 +2,6 @@ package models
 
 import "{{.Config.PackageName}}/gnorm"
 
-type SortDirection string
-
-const (
-	SortDirectionAsc  SortDirection = "ASC"
-	SortDirectionDesc SortDirection = "DESC"
-)
-
 // Filter Details on order and filters for a particular search request
 type Filter struct {
 	Cursor *string             // If provided, returns results from the cursor

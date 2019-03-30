@@ -282,19 +282,209 @@ And see the results!
 
 ## Pagination
 
-This project provides some useful tools for auto-generating code to allow for pagination.  Suppose you wanted to provide a paginated list for todos.  Update your config to look like this:
+This project provides some useful tools for auto-generating code to allow for pagination.  When using a PostgreSQL database with the auto-generated scripts, we enable [cursor-based pagination](https://graphql.org/learn/pagination/).   Suppose you wanted to provide a paginated list for todos.  Update your config to include the following:
 
 ```
-packageName: "github.com/example/todo"
 generate:
   resolvers:
-  - singularName: "todo"
-    pluralName: "todos"
+  - singularName: "Todo"
+    pluralName: "Todos"
     query: true
   postgres:
   - modelName: "Todo"
     postgresName: "Todo"
     primaryKey: "TodoID"
+```
+
+The `postgres` related configuration will auto-generate a few functions for us to interact with the database, including functions that can handle creating queries that support pagination.  The `resolvers` related option, setting `query: true`, automatically generates a `queryTodos` function for us in `resolvers/gen_todo.go`.  To get this to work, we need to fill out a few more details.
+
+First, update `schema.graphql` to include the types we will need.  Add the following:
+
+```
+enum SortDirection {
+	ASC
+	DESC
+}
+
+type TodosConnection {
+	totalCount: Int!
+	edges: [TodoEdge!]
+	pageInfo: PageInfo!
+}
+
+type TodoEdge {
+	cursor: ID!
+	node: Todo!
+}
+
+input TodoFilter {
+	done: Boolean
+}
+
+enum TodoSort {
+	CONTENT
+}
+```
+
+And also under `type Query' in your schema, add:
+
+```
+todosConnection(first: Int, after: ID, last: Int, before: ID, filters: TodoFilter, sortField: TodoSort, sortDirection: SortDirection): TodosConnection!
+```
+
+Then, in a new `resolvers/todo.go` file, create the following:
+
+```
+package resolvers
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/example/todo/gnorm"
+	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/models"
+)
+
+func editableUpdateTodoFields(ctx context.Context, id string) ([]string, error) {
+	return []string{}, nil
+}
+
+func sortTodo(ctx context.Context, sortField models.TodoSort, order gnorm.Order) (gnorm.Order, error) {
+	var err error
+	switch sortField {
+	case models.TodoSortContent:
+		err = order.AddField("content")
+	default:
+		err = fmt.Errorf("Unsupported sort field")
+	}
+
+	if err != nil {
+		err = fmt.Errorf("Cannot sort by field %s: %s", sortField, err)
+		return order, err
+	}
+
+	return order, nil
+}
+
+func filterTodo(ctx context.Context, f models.TodoFilter) (where []gnorm.WhereClause, err error) {
+	if f.Done != nil {
+		where = append(where, dbl.TodoDoneCol.Equals(*f.Done))
+	}
+	return
+}
+
+func (r *queryResolver) TodosConnection(
+	ctx context.Context,
+	first *int,
+	after *string,
+	last *int,
+	before *string,
+	filters *models.TodoFilter,
+	sortField *models.TodoSort,
+	sortDirection *models.SortDirection,
+) (
+	*models.TodosConnection,
+	error,
+) {
+	con, err := queryTodos(ctx, first, after, last, before, filters, sortField, sortDirection, []gnorm.WhereClause{})
+	return &con, err
+}
+```
+
+`editableUpdateTodoFields` is used as part of the permissions system, and returns a list of fields that are allowed to be updated in the current context (such as the current authenticated user and the target object in question).  This is covered in more detail elsewhere.  For now, we return no fields, which effectively disables editing.
+
+`sortTodo` is the function that configures the sort order for this request, and can be highly configurable depending on your needs.  For now, we do a simple sort based on the text field.
+
+`filterTodo` we leave empty for the moment, but this is where filters can be applied to the transaction to restrict results.
+
+`TodosConnection` is the resolver that returns our results.
+
+Re-generate the code based on these changes:
+
+```
+go run github.com/episub/estack generate
+```
+
+And launch the server:
+
+```
+DB_USER=estack DB_PASS=estack go run server.go
+```
+
+Try out some queries.  For example, fetch the first 5 results:
+
+```
+query {
+  todosConnection(first: 5) {
+    totalCount
+    edges {
+      cursor
+      node {
+        id
+        content
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+```
+
+Or fetch the next page:
+
+```
+query {
+  todosConnection(first: 5, after: "5") {
+    totalCount
+    edges {
+      cursor
+      node {
+        id
+        content
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+```
+
+Sort based on text:
+
+```
+query {
+  todosConnection(sortField: CONTENT) {
+    edges {
+      cursor
+      node {
+        id
+        content
+      }
+    }
+  }
+}
+```
+
+Filter results based on todo `done` status:
+
+```
+query {
+  todosConnection(sortField: CONTENT, filters: {done: false}) {
+    edges {
+      cursor
+      node {
+        id
+        content
+        done
+      }
+    }
+  }
+}
 ```
 
 ## User Permissions

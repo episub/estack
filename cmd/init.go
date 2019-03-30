@@ -35,7 +35,7 @@ var schemaDefault = `
 
 type Todo {
   id: ID!
-  text: String!
+  content: String!
   done: Boolean!
   user: User!
 }
@@ -50,7 +50,7 @@ type Query {
 }
 
 input NewTodo {
-  text: String!
+  content: String!
   userId: String!
 }
 
