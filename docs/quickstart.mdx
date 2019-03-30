@@ -19,7 +19,7 @@ This framework is designed to allow you to use as much or as little as you want.
 This project relies on using Go modules, so you will need Go 1.11 or higher installed, and use a folder outside of $GOPATH.  Initialisation should be run only once.  It will set up a new project with fresh configs.  Create a folder for your new repository, and initialise your modules file:
 
 ```
-go mod init github.com/example/project
+go mod init github.com/example/todo
 ```
 
 Now we're ready to generate our project (optionally specify --folder={folder}):
@@ -39,10 +39,10 @@ docker-compose up -d
 Now we are ready to generate our code:
 
 ```
-go run scripts/estack.go generate
+go run github.com/episub/estack generate
 ```
 
-This gives us the GraphQL code.  Open up `resolvers/resolver.go`.  There is a bug at the moment, so we need to add the import `"github.com/episub/stacktest/graph/generated"` at the top, and ensure that MutationResolver and QueryResolver use this package.  i.e., `generated.MutationResolver` and `generated.QueryResolver`.
+This gives us the GraphQL code.  Open up `resolvers/resolver.go`.  There is a bug at the moment, so we need to add the import `"github.com/example/todo/graph/generated"` at the top, and ensure that MutationResolver and QueryResolver use this package.  i.e., `graph.MutationResolver` and `graph.QueryResolver`.
 
 That's it.  Now you're ready to run the project:
 
@@ -61,7 +61,7 @@ query {
 }
 ```
 
-You will see an error results, because we haven't implemented this resolver yet.  In fact, the default code has a panic hard coded into it.  Fill out the query with something like the following:
+You will see an error results, because we haven't implemented this resolver yet.  In fact, the default code has a panic hard coded into it.  Fill out the query in resolvers/resolver.go with something like the following:
 
 ```
 func (r *queryResolver) Todos(ctx context.Context) ([]models.Todo, error) {
@@ -89,7 +89,7 @@ Let's pull our todos from the database rather than hard coding the reply.  Updat
 Update your config.yaml to the following:
 
 ```
-packageName: "github.com/episub/stacktest"
+packageName: "github.com/example/todo"
 generate:
   postgres:
   - modelName: "Todo"
@@ -98,9 +98,16 @@ generate:
     primaryKeyType: "int"
 ```
 
-We now need to  manually create some more entries in order to use the provided auto-generated loader functions.  When we want to use a relay connections type response, we need a PageInfo object.  We won't be using it yet, but the auto-generated functions require it.  So let's add it to our schema.graphql file:
+One of the objects that gets used by our auto-generated scripts is PageInfo, used for pagination.  Let's add this to our schema now so that the model struct gets created for us.  Add the following into your `schema.graphql` file:
 
-Finally, because we're separating the database representation of our data from the GraphQL API, we need to perform the translation.  In many cases we'll find ourselves using models that happen to match the database layout very closely, but this may not always be so.  Create the file `loader/todo.go` with the following content:
+```
+type PageInfo {
+	hasNextPage: Boolean!
+	hasPreviousPage: Boolean!
+}
+```
+
+Because we're separating the database representation of our data from the GraphQL API, we need to perform the translation.  In many cases we'll find ourselves using models that happen to match the database layout very closely, but this may not always be so.  Create the file `loader/todo.go` with the following content:
 
 ```
 package loader
@@ -109,8 +116,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/episub/stacktest/gnorm/dbl"
-	"github.com/episub/stacktest/models"
+	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/models"
 )
 
 func hydrateModelTodo(ctx context.Context, i dbl.TodoFull) (o models.Todo) {
@@ -177,13 +184,13 @@ Update `gqlgen.yml` at the bottom with the following to tell gqlgen that we are 
 ```
 models:
   Todo:
-    model: github.com/episub/stacktest/models.Todo
+    model: github.com/example/todo/models.Todo
 ```
 
 Update `config.yaml` to generate user related functions:
 
 ```
-packageName: "github.com/episub/stacktest"
+packageName: "github.com/example/todo"
 generate:
   postgres:
   - modelName: "Todo"
@@ -205,8 +212,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/episub/stacktest/gnorm/dbl"
-	"github.com/episub/stacktest/models"
+	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/models"
 )
 
 func hydrateModelUser(ctx context.Context, i dbl.UserFull) (o models.User) {
@@ -239,16 +246,19 @@ DB_USER=estack DB_PASS=estack go run server.go
 This error is telling us that we no longer implement the Todo method.  We need to provide our own Todo resolver, and along with that a User resolver since Todo no longer has a User field that gqlgen can use to return the value.  Update `resolvers/resolver.go`  by adding the following:
 
 ```
-func (r *Resolver) Todo() generated.TodoResolver {
+func (r *Resolver) Todo() graph.TodoResolver {
 	return &todoResolver{r}
 }
 
-func (t *todoResolver) User(ctx context.Context, obj *models.Todo) (models.User, error) {
+type todoResolver struct{ *Resolver }
+
+func (t *todoResolver) User(ctx context.Context, obj *models.Todo) (*models.User, error) {
 	i, err := strconv.ParseInt(obj.UserID, 10, 64)
 	if err != nil {
-		return models.User{}, fmt.Errorf("Invalid format for user ID.  Must be an integer")
+		return &models.User{}, fmt.Errorf("Invalid format for user ID.  Must be an integer")
 	}
-	return loader.Loader.GetUser(ctx, int(i))
+	user, err := loader.Loader.GetUser(ctx, int(i))
+	return &user, err
 }
 ```
 
@@ -275,7 +285,7 @@ And see the results!
 This project provides some useful tools for auto-generating code to allow for pagination.  Suppose you wanted to provide a paginated list for todos.  Update your config to look like this:
 
 ```
-packageName: "github.com/episub/stacktest"
+packageName: "github.com/example/todo"
 generate:
   resolvers:
   - singularName: "todo"
