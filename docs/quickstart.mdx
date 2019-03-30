@@ -225,7 +225,7 @@ func hydrateModelUser(ctx context.Context, i dbl.UserFull) (o models.User) {
 }
 ```
 
-Update hydrateModelTodo in `loader/todo.go` to add a line setting the User ID:
+Update hydrateModelTodo in `loader/todo.go` to add a line setting the User ID.  This will provide us with the User ID we need to fetch the user itself if requested, but we don't load the user unless it is actually asked for:
 
 ```
 	o.UserID = fmt.Sprintf("%d", i.UserID)
