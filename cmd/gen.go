@@ -32,7 +32,12 @@ var genCmd = cli.Command{
 		cli.StringFlag{Name: "folder", Usage: "where to create the project"},
 	},
 	Action: func(ctx *cli.Context) {
-		_ = os.Chdir(ctx.String("folder"))
+		if len(ctx.String("folder")) > 0 {
+			err := os.Chdir(ctx.String("folder"))
+			if err != nil {
+				exit(err)
+			}
+		}
 
 		// Ensure package name is loaded:
 		err := loadPackageName()

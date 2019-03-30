@@ -116,15 +116,17 @@ var initCmd = cli.Command{
 		cli.StringFlag{Name: "folder", Usage: "where to create the project"},
 	},
 	Action: func(ctx *cli.Context) {
-		err := os.Chdir(ctx.String("folder"))
-		if err != nil {
-			exit(err)
+		if len(ctx.String("folder")) > 0 {
+			err := os.Chdir(ctx.String("folder"))
+			if err != nil {
+				exit(err)
+			}
 		}
 
 		log.Printf("init path: %s", ctx.String("folder"))
 
 		// Ensure package name is loaded:
-		err = loadPackageName()
+		err := loadPackageName()
 		if err != nil {
 			exit(err)
 		}
