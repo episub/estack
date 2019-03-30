@@ -44,10 +44,6 @@ func Execute() {
 
 }
 
-func Blah() {
-	log.Printf("Hi")
-}
-
 func loadTemplates() {
 	filterTemplate = loadTemplateFromFile("models/filter.gotmpl")
 	postgresTemplate = loadTemplateFromFile("loader/gen.gotmpl")
