@@ -123,10 +123,18 @@ var initCmd = cli.Command{
 			}
 		}
 
+		// Check if config already exists, if it does, assume init has been run
+		// already:
+		_, err := os.Stat("config.yaml")
+		if err == nil {
+			log.Printf("It appears init has already been run.  Please remove config.yaml to continue if you think this is mistaken.")
+			return
+		}
+
 		log.Printf("init path: %s", ctx.String("folder"))
 
 		// Ensure package name is loaded:
-		err := loadPackageName()
+		err = loadPackageName()
 		if err != nil {
 			exit(err)
 		}

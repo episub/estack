@@ -58,23 +58,7 @@ var genCmd = cli.Command{
 		}
 		log.Printf("Config:\n%+v", config)
 
-		// GNORM related setup
-
-		// Delete any existing gnorm files so there are no legacy ones around
-		runCommand("rm -rf gnorm")
-		copyTemplate("templates/table.gotmpl", "templates/table.gotmpl")
-		copyTemplate("templates/enum.gotmpl", "templates/enum.gotmpl")
-		copyTemplate("templates/schema.gotmpl", "templates/schema.gotmpl")
-
 		generateGnorm()
-		runCommand(fmt.Sprintf("mv %s %s", "gnorm/Public/tables", "gnorm/dbl"))
-		runCommand(fmt.Sprintf("rm -rf %s", "gnorm/Public"))
-		runCommand(fmt.Sprintf("goimports -w %s", "gnorm/."))
-		runCommand(fmt.Sprintf("goimports -w %s", "gnorm/dbl/."))
-
-		copyTemplate("gnorm/db.go", "gnorm/db.go")
-		copyTemplate("gnorm/where.go", "gnorm/where.go")
-		copyTemplate("gnorm/dbl/util.go", "gnorm/dbl/util.go")
 
 		var tasks []Task
 		tasks = append(tasks, Task{Folder: "loader", Build: postgresBuild})
@@ -95,7 +79,23 @@ func generateGnorm() {
 		Stdin:  os.Stdin,
 	}
 
+	// Delete any existing gnorm files so there are no legacy ones around
+	runCommand("rm -rf gnorm")
+	copyTemplate("templates/table.gotmpl", "templates/table.gotmpl")
+	copyTemplate("templates/enum.gotmpl", "templates/enum.gotmpl")
+	copyTemplate("templates/schema.gotmpl", "templates/schema.gotmpl")
+
 	gcli.ParseAndRun(env)
+
+	runCommand(fmt.Sprintf("mv %s %s", "gnorm/Public/tables", "gnorm/dbl"))
+	runCommand(fmt.Sprintf("rm -rf %s", "gnorm/Public"))
+	runCommand(fmt.Sprintf("goimports -w %s", "gnorm/."))
+	runCommand(fmt.Sprintf("goimports -w %s", "gnorm/dbl/."))
+
+	copyTemplate("gnorm/db.go", "gnorm/db.go")
+	copyTemplate("gnorm/where.go", "gnorm/where.go")
+	copyTemplate("gnorm/dbl/util.go", "gnorm/dbl/util.go")
+
 }
 
 // copyTemplate Copies files from the template folder relative to *this* file

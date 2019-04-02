@@ -22,7 +22,6 @@ var packageRx = regexp.MustCompile(`^module ([a-zA-Z0-9.\-\/]+)$`)
 
 // Execute Run estack
 func Execute() {
-	log.Printf("A")
 	loadTemplates()
 
 	app := cli.NewApp()
