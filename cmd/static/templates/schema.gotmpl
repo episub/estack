@@ -9,7 +9,7 @@ import (
 "github.com/episub/pqt"
 )
 
-{{ range (makeSlice "int" "string" "sql.NullString" "int64" "sql.NullInt64" "float64" "sql.NullFloat64" "bool" "sql.NullBool" "time.Time" "pq.NullTime" "uint32" "byte" "uuid.NullUUID" "pqt.Date" "pqt.NullDate") }}
+{{ range (makeSlice "int" "string" "sql.NullString" "int64" "sql.NullInt64" "float64" "sql.NullFloat64" "bool" "sql.NullBool" "time.Time" "pq.NullTime" "uint32" "byte" "uuid.NullUUID" "pqt.Date" "pqt.NullDate" "*string" "*int64" "*float64" "*bool" "*time.Time") }}
 {{ $fieldName := title (replace . "." "" 1) }}
 // {{$fieldName}}Field is a component that returns a WhereClause that contains a
 // comparison based on its field and a strongly typed value.

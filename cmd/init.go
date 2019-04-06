@@ -28,61 +28,40 @@ resolver:
   type: Resolver
 `
 
-var schemaDefault = `
-# GraphQL schema example
-#
-# https://gqlgen.com/getting-started/
-
-type Todo {
-  id: ID!
-  content: String!
-  done: Boolean!
-  user: User!
-}
-
-type User {
-  id: ID!
-  name: String!
-}
-
-type Query {
-  todos: [Todo!]!
-}
-
-input NewTodo {
-  content: String!
-  userId: String!
-}
-
-type Mutation {
-  createTodo(input: NewTodo!): Todo!
-}
-`
-
 var gqlSchemaDefault = `
 # GraphQL schema example
 #
 # https://gqlgen.com/getting-started/
+
 type Todo {
   id: ID!
   content: String!
   done: Boolean!
   user: User!
 }
+
 type User {
   id: ID!
   username: String!
   admin: Boolean!
 }
+
 type Query {
   todos: [Todo!]!
 }
+
 input NewTodo {
   text: String!
   userId: String!
 }
+
 type Mutation {
   createTodo(input: NewTodo!): Todo!
+}
+
+enum SortDirection {
+  ASC
+  DESC
 }
 `
 

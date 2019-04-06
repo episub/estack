@@ -6,6 +6,7 @@ import (
 	"{{.Config.PackageName}}/models"
 	"{{.Config.PackageName}}/gnorm"
 	"{{.Config.PackageName}}/gnorm/dbl"
+	"{{.ModelPackage}}"
 	"github.com/episub/estack/validate"
 	"github.com/codemodus/kace"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -27,14 +28,14 @@ var {{camel .ModelName}}Initialised bool
 var {{camel .ModelName}}FRs []{{.ModelName}}FetchRequest
 var {{camel .ModelName}}MX sync.Mutex
 
-// Get{{.ModelName}} Returns models.{{.ModelName}} with given ID
+// Get{{.ModelName}} Returns {{.ModelPackageShort}}.{{.ModelName}} with given ID
 {{- $idName := snake .ModelName}}
-func (l *PostgresLoader) Get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}) (o models.{{.ModelName}}, err error) {
+func (l *PostgresLoader) Get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}) (o {{.ModelPackageShort}}.{{.ModelName}}, err error) {
 	return l.get{{.ModelName}}(ctx, id, l.pool)
 }
 
-// get{{.ModelName}} Returns models.{{.ModelName}} with given ID, using provided DB connection
-func (l *PostgresLoader) get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}, db gnorm.DB) (o models.{{.ModelName}}, err error) {
+// get{{.ModelName}} Returns {{.ModelPackageShort}}.{{.ModelName}} with given ID, using provided DB connection
+func (l *PostgresLoader) get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}, db gnorm.DB) (o {{.ModelPackageShort}}.{{.ModelName}}, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Get{{.ModelName}}")
 	defer span.Finish()
 
@@ -120,7 +121,7 @@ func (l *PostgresLoader) run{{.ModelName}}Batcher() {
 }
 
 // GetAll{{.ModelName}} Returns an array of all {{.ModelName}} entries, using the provided filter
-func (l *PostgresLoader) GetAll{{.ModelName}}(ctx context.Context, filter models.Filter) (all []models.{{.ModelName}}, pi models.PageInfo, count int, err error) {
+func (l *PostgresLoader) GetAll{{.ModelName}}(ctx context.Context, filter models.Filter) (all []{{.ModelPackageShort}}.{{.ModelName}}, pi models.PageInfo, count int, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetAll{{.ModelName}}")
 	defer span.Finish()
 
@@ -158,7 +159,7 @@ func (l *PostgresLoader) GetAll{{.ModelName}}(ctx context.Context, filter models
 	}
 
 
-	all = make([]models.{{.ModelName}}, len(r))
+	all = make([]{{.ModelPackageShort}}.{{.ModelName}}, len(r))
 	for i, b := range r {
 		all[i] = hydrateModel{{.ModelName}}(ctx, b)
 	}

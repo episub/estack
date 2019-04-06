@@ -12,8 +12,6 @@ import (
 	"text/template"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
-
 	"github.com/codemodus/kace"
 	"github.com/urfave/cli"
 	gcli "gnorm.org/gnorm/cli"
@@ -46,16 +44,11 @@ var genCmd = cli.Command{
 		}
 
 		// Load config.yaml
-		input, err := ioutil.ReadFile(filePath(ctx, "config.yaml"))
+		config, err := readConfig(filePath(ctx, "config.yaml"))
 		if err != nil {
 			exit(err)
 		}
 
-		var config Config
-		err = yaml.Unmarshal(input, &config)
-		if err != nil {
-			exit(err)
-		}
 		log.Printf("Config:\n%+v", config)
 
 		generateGnorm()
@@ -273,21 +266,25 @@ func postgresBuild(config Config, folder string) error {
 		}
 
 		err = postgresTemplate.Execute(f, struct {
-			Config         Config
-			Timestamp      time.Time
-			ModelName      string
-			PmName         string
-			PK             string
-			PrimaryKeyType string
-			Create         bool
+			Config            Config
+			Timestamp         time.Time
+			ModelName         string
+			ModelPackage      string
+			ModelPackageShort string
+			PmName            string
+			PK                string
+			PrimaryKeyType    string
+			Create            bool
 		}{
-			Config:         config,
-			Timestamp:      time.Now(),
-			ModelName:      b.ModelName,
-			PmName:         b.PmName,
-			PK:             b.PK,
-			PrimaryKeyType: b.PrimaryKeyType,
-			Create:         b.Create,
+			Config:            config,
+			Timestamp:         time.Now(),
+			ModelName:         b.ModelName,
+			ModelPackage:      b.ModelPackage,
+			ModelPackageShort: b.ModelPackageShort,
+			PmName:            b.PmName,
+			PK:                b.PK,
+			PrimaryKeyType:    b.PrimaryKeyType,
+			Create:            b.Create,
 		})
 		f.Close()
 

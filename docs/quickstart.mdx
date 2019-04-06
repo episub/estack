@@ -42,7 +42,22 @@ Now we are ready to generate our code:
 go run github.com/episub/estack generate
 ```
 
-This gives us the GraphQL code.  Open up `resolvers/resolver.go`.  There is a bug at the moment, so we need to add the import `"github.com/example/todo/graph/generated"` at the top, and ensure that MutationResolver and QueryResolver use this package.  i.e., `graph.MutationResolver` and `graph.QueryResolver`.
+This gives us the GraphQL code.  We have one final task: filling out the resolvers code in `resolvers/resolver.go` to tell our server what to return when someone requests all the todos (we'll leave the others for now):
+
+```
+func (r *queryResolver) Todos(ctx context.Context) ([]models.Todo, error) {
+	todos := make([]models.Todo, 3)
+
+	for i, _ := range todos {
+		todos[i] = models.Todo{
+			ID:   fmt.Sprintf("%d", i),
+			Content: fmt.Sprintf("Todo number %d", i),
+		}
+	}
+
+	return todos, nil
+}
+```
 
 That's it.  Now you're ready to run the project:
 
@@ -61,22 +76,6 @@ query {
 }
 ```
 
-You will see an error results, because we haven't implemented this resolver yet.  In fact, the default code has a panic hard coded into it.  Fill out the query in resolvers/resolver.go with something like the following:
-
-```
-func (r *queryResolver) Todos(ctx context.Context) ([]models.Todo, error) {
-	todos := make([]models.Todo, 3)
-
-	for i, _ := range todos {
-		todos[i] = models.Todo{
-			ID:   fmt.Sprintf("%d", i),
-			Content: fmt.Sprintf("Todo number %d", i),
-		}
-	}
-
-	return todos, nil
-}
-```
 
 Start the server back up again, and try the query again.  You should now see it working!
 
@@ -93,8 +92,16 @@ packageName: "github.com/example/todo"
 generate:
   postgres:
   - modelName: "Todo"
+    modelPackage: "github.com/example/todo/gnorm/dbl"
+    modelPackageShort: "dbl"
     postgresName: "Todo"
     primaryKey: "TodoID"
+    primaryKeyType: "int"
+  - modelName: "User"
+    modelPackage: "github.com/example/todo/models"
+    modelPackageShort: "models"
+    postgresName: "User"
+    primaryKey: "UserID"
     primaryKeyType: "int"
 ```
 
@@ -107,7 +114,15 @@ type PageInfo {
 }
 ```
 
-Because we're separating the database representation of our data from the GraphQL API, we need to perform the translation.  In many cases we'll find ourselves using models that happen to match the database layout very closely, but this may not always be so.  Create the file `loader/todo.go` with the following content:
+gqlgen allows us to define our own struct to use for Todo instead of the automatically generated one, and that's what we'll do here.  Sometimes you may want to create your own, but in this case we'll just use the automatically generated database struct for Todo.  Update `gqlgen.yml` at the bottom with the following to tell gqlgen that we are going to provide the Todo model ourselves:
+
+```
+models:
+  Todo:
+    model: github.com/example/todo/gnorm/dbl.Todo
+```
+
+Because we're separating the database representation of our data from the GraphQL API, we need to perform the translation between the database's model and our GraphQL model.  In this case, the translation is very simple because we told gqlgen to use our database model directly.  However, you may sometimes want to override this and perform your own translation.  Create the file `loader/todo.go` with the following content:
 
 ```
 package loader
@@ -120,90 +135,12 @@ import (
 	"github.com/example/todo/models"
 )
 
-func hydrateModelTodo(ctx context.Context, i dbl.TodoFull) (o models.Todo) {
-	o.ID = fmt.Sprintf("%d", i.TodoID)
-	o.Content = i.Content
-	o.Done = i.Done
-
-	return
+func hydrateModelTodo(ctx context.Context, i dbl.TodoFull) (dbl.Todo) {
+	return i.Todo
 }
 ```
 
-In `loader/init.go`, update the runBatchLoaders() function with the one for our new function.  This lets us batch together some requests to reduce database calls:
-
-```
-	go Loader.runTodoBatcher()
-```
-
-We also need to ensure the database is initialised.  Open up `server.go` and let's initialise the loader by adding the following early in the main() function (after env.Parse):
-
-```
-	err = loader.InitialiseLoader(cfg.DBName, cfg.DBUser, cfg.DBPass, cfg.DBHost, log)
-	if err != nil {
-		log.Fatal(err)
-	}
-```
-
-And now for the main part, where we update the resolver to return the loader returned values.  In `resolvers/resolver.go`, update our resolver function to be as follows:
-
-```
-func (r *queryResolver) Todos(ctx context.Context) ([]models.Todo, error) {
-	all, _, _, err := loader.Loader.GetAllTodo(ctx, models.Filter{})
-	return all, err
-}
-```
-
-Finally, we re-run the generated and then run the server.  We pass in configuration values as environment variables so that it's easier to set for docker based production deployments:
-
-```
-go run scripts/estack.go generate
-DB_USER=estack DB_PASS=estack go run server.go
-```
-
-Try your query again, and it should now return the results from the database!
-
-It may seem more cumbersome to have to translate between the database and GraphQL, but this extra burden comes with the benefit of clear separation of concerns that should be separate.  It allows us to break the symmetry between database model and GraphQL model where needed, and allows a much more flexible design.
-
-#### User
-
-The above works, but we won't be able to fetch the user, and being able to traverse the graph to do this is one of the main benefits of GraphQL.  To implement this requires us to override the auto-generated models so that we can store the user ID rather than the full user (which currently does not get fetched from the database).  In models/generated.go we can find the auto-created Todo struct.  Move that into its own file `models/todo.go`, and change User to UserID string:
-
-```
-package models
-
-type Todo struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Done    bool   `json:"done"`
-	UserID  string
-}
-```
-
-Update `gqlgen.yml` at the bottom with the following to tell gqlgen that we are going to provide the Todo model ourselves:
-
-```
-models:
-  Todo:
-    model: github.com/example/todo/models.Todo
-```
-
-Update `config.yaml` to generate user related functions:
-
-```
-packageName: "github.com/example/todo"
-generate:
-  postgres:
-  - modelName: "Todo"
-    postgresName: "Todo"
-    primaryKey: "TodoID"
-    primaryKeyType: "int"
-  - modelName: "User"
-    postgresName: "User"
-    primaryKey: "UserID"
-    primaryKeyType: "int"
-```
-
-As we did above, we need to create a hydrate function to translate from a database user to a GraphQL user.  Create the file `loader/user.go` with the following contents:
+Because we're using the auto-generated model for User, we need to do some manual translation ourselves.  We could do the same as above, overriding the model with our own, but this demonstrates how it would look if we manually hydrated the models/User struct.  In `loader/user.go` we'll create the following:
 
 ```
 package loader
@@ -225,44 +162,103 @@ func hydrateModelUser(ctx context.Context, i dbl.UserFull) (o models.User) {
 }
 ```
 
-Update hydrateModelTodo in `loader/todo.go` to add a line setting the User ID.  This will provide us with the User ID we need to fetch the user itself if requested, but we don't load the user unless it is actually asked for:
+In `loader/init.go`, update the runBatchLoaders() function with the ones for our new functions.  This lets us batch together some requests to reduce database calls:
 
 ```
-	o.UserID = fmt.Sprintf("%d", i.UserID)
-```
-
-And add the batch loader in `loader/init.go`:
-
-```
+	go Loader.runTodoBatcher()
 	go Loader.runUserBatcher()
 ```
 
-If you regenerate now and try to run the server, you'll see an error:
-```
-go run scripts/estack.go generate
-DB_USER=estack DB_PASS=estack go run server.go
-```
-
-This error is telling us that we no longer implement the Todo method.  We need to provide our own Todo resolver, and along with that a User resolver since Todo no longer has a User field that gqlgen can use to return the value.  Update `resolvers/resolver.go`  by adding the following:
+We also need to ensure the database is initialised.  Open up `server.go` and let's initialise the loader by adding the following early in the main() function (after env.Parse):
 
 ```
+	err = loader.InitialiseLoader(cfg.DBName, cfg.DBUser, cfg.DBPass, cfg.DBHost, log)
+	if err != nil {
+		log.Fatal(err)
+	}
+```
+
+And now for the main part, where we update the resolver to return the loader returned values.  In `resolvers/resolver.go`, update the file to match the following (a full explanation for the differences can be found by learning more about [gqlgen](https://github.com/99designs/gqlgen)):
+
+```
+package resolvers
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/graph"
+	"github.com/example/todo/loader"
+	"github.com/example/todo/models"
+)
+
+type Resolver struct{}
+
+func (r *Resolver) Mutation() graph.MutationResolver {
+	return &mutationResolver{r}
+}
+func (r *Resolver) Query() graph.QueryResolver {
+	return &queryResolver{r}
+}
+
+type mutationResolver struct{ *Resolver }
+
+func (r *mutationResolver) CreateTodo(ctx context.Context, input models.NewTodo) (*dbl.Todo, error) {
+	panic("not implemented")
+}
+
+type queryResolver struct{ *Resolver }
+
+func (r *queryResolver) Todos(ctx context.Context) ([]dbl.Todo, error) {
+	all, _, _, err := loader.Loader.GetAllTodo(ctx, models.Filter{})
+	return all, err
+}
+
 func (r *Resolver) Todo() graph.TodoResolver {
 	return &todoResolver{r}
 }
 
 type todoResolver struct{ *Resolver }
 
-func (t *todoResolver) User(ctx context.Context, obj *models.Todo) (*models.User, error) {
-	i, err := strconv.ParseInt(obj.UserID, 10, 64)
-	if err != nil {
-		return &models.User{}, fmt.Errorf("Invalid format for user ID.  Must be an integer")
-	}
-	user, err := loader.Loader.GetUser(ctx, int(i))
+func (t *todoResolver) User(ctx context.Context, obj *dbl.Todo) (*models.User, error) {
+	user, err := loader.Loader.GetUser(ctx, obj.UserID)
 	return &user, err
+}
+
+func (t *todoResolver) ID(ctx context.Context, obj *dbl.Todo) (string, error) {
+	return fmt.Sprintf("%d", obj.TodoID), nil
 }
 ```
 
-Return to the GraphQL explorer and try your new  query out:
+The key line for fetching todo's from the database was this entry:
+
+```
+func (r *queryResolver) Todos(ctx context.Context) ([]dbl.Todo, error) {
+	all, _, _, err := loader.Loader.GetAllTodo(ctx, models.Filter{})
+	return all, err
+}
+```
+
+Finally, we re-run the generated and then run the server.  We pass in configuration values as environment variables so that it's easier to set for docker based production deployments:
+
+```
+go run github.com/episub/estack generate
+DB_USER=estack DB_PASS=estack go run server.go
+```
+
+Try your query again, and it should now return the results from the database:
+
+```
+query {
+  todos {
+    id
+    content
+  }
+}
+```
+
+Moreover, we can now fetch the users from within the database as well:
 
 ```
 query {
@@ -272,17 +268,16 @@ query {
     user {
       id
       username
-      admin
     }
   }
 }
 ```
 
-And see the results!
+It may seem more cumbersome to have to translate between the database and GraphQL as we did for `User`, but this extra burden comes with the benefit of clear separation of concerns that should be separate.  It allows us to break the symmetry between database model and GraphQL model where needed, and allows a much more flexible design.  When not needed, we can use the database object directly as we did for `Todo`.
 
 ## Pagination
 
-This project provides some useful tools for auto-generating code to allow for pagination.  When using a PostgreSQL database with the auto-generated scripts, we enable [cursor-based pagination](https://graphql.org/learn/pagination/).   Suppose you wanted to provide a paginated list for todos.  Update your config to include the following:
+This project provides some useful tools for auto-generating code to allow for pagination.  When using a PostgreSQL database with the auto-generated scripts, we enable [cursor-based pagination](https://graphql.org/learn/pagination/).   Suppose you wanted to provide a paginated list for todos.  Update your config to include the following (don't remove the other parts under 'generate'):
 
 ```
 generate:
@@ -290,10 +285,6 @@ generate:
   - singularName: "Todo"
     pluralName: "Todos"
     query: true
-  postgres:
-  - modelName: "Todo"
-    postgresName: "Todo"
-    primaryKey: "TodoID"
 ```
 
 The `postgres` related configuration will auto-generate a few functions for us to interact with the database, including functions that can handle creating queries that support pagination.  The `resolvers` related option, setting `query: true`, automatically generates a `queryTodos` function for us in `resolvers/gen_todo.go`.  To get this to work, we need to fill out a few more details.
@@ -301,11 +292,6 @@ The `postgres` related configuration will auto-generate a few functions for us t
 First, update `schema.graphql` to include the types we will need.  Add the following:
 
 ```
-enum SortDirection {
-	ASC
-	DESC
-}
-
 type TodosConnection {
 	totalCount: Int!
 	edges: [TodoEdge!]
