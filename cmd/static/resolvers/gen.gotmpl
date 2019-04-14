@@ -113,7 +113,13 @@ func query{{.PluralModelName}}(ctx context.Context, first *int, after *string, l
 	o.Edges = make([]models.{{.ModelName}}Edge, len(r))
 
 	for i, t := range r {
-		o.Edges[i] = models.{{.ModelName}}Edge{Cursor: t.ID, Node: t}
+		{{if eq .PrimaryKeyType "string"}}
+		o.Edges[i] = models.{{.ModelName}}Edge{Cursor: t.{{.PrimaryKey}}, Node: t}
+		{{else if eq .PrimaryKeyType "int"}}
+		o.Edges[i] = models.{{.ModelName}}Edge{Cursor: fmt.Sprintf("%d", t.{{.PrimaryKey}}), Node: t}
+		{{else}}
+		panic("Primary key type {{.PrimaryKeyType}} not supported yet")
+		{{end}}
 	}
 
 	return o, err

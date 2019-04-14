@@ -14,14 +14,19 @@ type Config struct {
 
 // Generate Stores generate values from yaml
 type Generate struct {
-	Resolvers []ResolverGenerate `yaml:"resolvers"`
-	Postgres  []PostgresGenerate `yaml:"postgres"`
+	// ProtectGnorm When true, prevents gnorm's default files from being
+	// overwritten
+	ProtectGnorm bool               `yaml:"protectGnorm"`
+	Resolvers    []ResolverGenerate `yaml:"resolvers"`
+	Postgres     []PostgresGenerate `yaml:"postgres"`
 }
 
 // ResolverGenerate Which resolver related things to generate code for
 type ResolverGenerate struct {
 	SingularModelName string `yaml:"singularName"`
 	PluralModelName   string `yaml:"pluralName"`
+	PrimaryKey        string `yaml:"primaryKey"`
+	PrimaryKeyType    string `yaml:"primaryKeyType"`
 	Create            bool   `yaml:"create"`        // Build a create function
 	Update            bool   `yaml:"update"`        // Build an update function
 	PrepareCreate     bool   `yaml:"prepareCreate"` // Provide a prepare function for you (set to false if you want to set one yourself)
@@ -52,4 +57,21 @@ func readConfig(filename string) (Config, error) {
 	}
 
 	return config, err
+}
+
+// UnmarshalYAML Allows us to set default values when not provided in the
+// config
+func (r *ResolverGenerate) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	type rawR ResolverGenerate
+
+	raw := rawR{
+		PrimaryKey:     "ID",
+		PrimaryKeyType: "string",
+	}
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+
+	*r = ResolverGenerate(raw)
+	return nil
 }

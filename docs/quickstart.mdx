@@ -36,7 +36,7 @@ Before we can do this, we need the database running so that we can connect to th
 docker-compose up -d
 ```
 
-Now we are ready to generate our code:
+Once the database has booted up, we are ready to generate our code:
 
 ```
 go run github.com/episub/estack generate
@@ -274,6 +274,8 @@ query {
 ```
 
 It may seem more cumbersome to have to translate between the database and GraphQL as we did for `User`, but this extra burden comes with the benefit of clear separation of concerns that should be separate.  It allows us to break the symmetry between database model and GraphQL model where needed, and allows a much more flexible design.  When not needed, we can use the database object directly as we did for `Todo`.
+
+In some cases you may want to have models in your GraphQL API that don't correspond to any one specific table in the database.  In those situations, you will create by hand the related functions to fetch from database and return the appropriate GraphQL model.  Auto-generation only helps for the common (but not exhaustive) scenario where there is a one to one mapping between table and GraphQL model.
 
 ## Pagination
 
