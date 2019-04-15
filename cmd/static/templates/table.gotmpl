@@ -13,8 +13,10 @@ import (
 const TableName = "{{.Table.DBName}}"
 
 {{$rootPkg := .Params.RootPkg -}}
+{{$params := .Params -}}
 {{$table := .Table.DBName -}}
 {{$schema := .Table.Schema.DBName -}}
+{{$hasCreatedAt := ne (len (.Table.Columns.DBNames.Except (makeSlice .Params.CreatedAtField))) (len .Table.Columns.DBNames)}}
 {{$colsByName := .Table.ColumnsByName }}
 
 {{- $nonPKDBNames := .Table.Columns.DBNames.Sorted.Except .Table.PrimaryKeys.DBNames}}
@@ -232,26 +234,27 @@ func Insert(ctx context.Context, db {{$rootPkg}}.DB, r *Row) error {
 		`DEFAULT VALUES ` +
 		{{- end}}
 		`RETURNING
-	{{- if $hasUpdatedAt}}
-			created_at, updated_at, {{join .Table.PrimaryKeys.DBNames.Sorted ", "}}
-	{{- else}}
-			created_at, {{join .Table.PrimaryKeys.DBNames.Sorted ", "}}
-	{{- end}}
+			{{- if $hasCreatedAt -}}
+			{{$params.CreatedAtField}},
+			{{- end -}}
+			{{- if $hasUpdatedAt -}}
+			{{$params.UpdatedAtField}}, 
+			{{- end }}
+			{{join .Table.PrimaryKeys.DBNames.Sorted ", "}}
 		`
 
-	{{if $hasUpdatedAt}}
 	err := db.QueryRowContext(ctx, sqlstr,
 	{{- range $insertCols}}{{with index $colsByName .}}
 		{{- if .IsArray }}pq.Array(&r.{{ .Name }}),{{- else -}}&r.{{ .Name }},{{ end }}
 	{{end}}
-{{end -}}).Scan(&r.CreatedAt, &r.UpdatedAt, {{$PKScanFields}})
-	{{else}}
-	err := db.QueryRowContext(ctx, sqlstr,
-	{{- range $insertCols}}{{with index $colsByName .}}
-		{{- if .IsArray }}pq.Array(&r.{{ .Name }}),{{- else -}}&r.{{ .Name }},{{ end }}
-	{{end}}
-{{end -}}).Scan(&r.CreatedAt, {{$PKScanFields}})
-	{{end}}
+{{end -}}).Scan(
+	{{- if $hasCreatedAt -}}
+		&r.{{pascal $params.CreatedAtField}},
+	{{- end -}}
+	{{- if $hasUpdatedAt -}}
+		&r.{{pascal $params.UpdatedAtField}},
+	{{- end -}}
+	{{$PKScanFields}})
 	return errors.Wrap(err, "insert {{.Table.Name}}")
 }
 
@@ -351,6 +354,7 @@ func Upsert(ctx context.Context, db {{$rootPkg}}.DB, r *Row) error {
 	) VALUES (
 		{{template "values" (len $upsertCols) }}
 	) ON CONFLICT ({{join .Table.PrimaryKeys.DBNames.Sorted ", " }}) DO UPDATE SET (
+		EXCLUDED.{{ join $upsertCols ", EXCLUDED." }}
 		{{join $upsertCols ", "}}
 	) = (
 		{{ template "values" (len $upsertCols) }}

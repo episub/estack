@@ -1,4 +1,4 @@
-package dbl
+package gnorm
 
 import (
 	"fmt"

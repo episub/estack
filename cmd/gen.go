@@ -82,14 +82,11 @@ func generateGnorm(config Config) {
 
 	gcli.ParseAndRun(env)
 
-	runCommand(fmt.Sprintf("mv %s %s", "gnorm/Public/tables", "gnorm/dbl"))
-	runCommand(fmt.Sprintf("rm -rf %s", "gnorm/Public"))
 	runCommand(fmt.Sprintf("goimports -w %s", "gnorm/."))
-	runCommand(fmt.Sprintf("goimports -w %s", "gnorm/dbl/."))
 
 	//copyTemplate("gnorm/db.go", "gnorm/db.go")
 	copyTemplate("gnorm/where.go", "gnorm/where.go")
-	copyTemplate("gnorm/dbl/util.go", "gnorm/dbl/util.go")
+	copyTemplate("gnorm/util.go", "gnorm/util.go")
 
 }
 

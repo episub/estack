@@ -180,6 +180,8 @@ NoOverwriteGlobs = ["*.perm.go"]
 packageName = "{{.}}"
 RootPkg = "gnorm"
 RootImport = "{{.}}/gnorm"
+CreatedAtField = "created_at"
+UpdatedAtField = "updated_at"
 
 # TemplateEngine, if specified, describes a command line tool to run to
 # render your templates, allowing you to use your preferred templating
