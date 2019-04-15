@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx"
 )
 
@@ -17,6 +18,12 @@ func paginateCompare(fields []string, parentKey string, query string, index int)
 	}
 
 	return strings.Join(compLeft, ", "), strings.Join(compRight, ", ")
+}
+
+// Qry Returns a new squirrel query builder.  Will one day check database
+// type and return appropriate type
+func Qry() sq.StatementBuilderType {
+	return sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 }
 
 func rollbackErr(err error, tx *pgx.Tx) error {

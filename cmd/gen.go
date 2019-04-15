@@ -75,9 +75,7 @@ func generateGnorm(config Config) {
 	// Delete any existing gnorm files so there are no legacy ones around
 	runCommand("rm -rf gnorm")
 	if !config.Generate.ProtectGnorm {
-		copyTemplate("templates/table.gotmpl", "templates/table.gotmpl")
-		copyTemplate("templates/enum.gotmpl", "templates/enum.gotmpl")
-		copyTemplate("templates/schema.gotmpl", "templates/schema.gotmpl")
+		copyTemplateFolder("templates", "templates")
 	}
 
 	gcli.ParseAndRun(env)
@@ -93,6 +91,7 @@ func generateGnorm(config Config) {
 // copyTemplate Copies files from the template folder relative to *this* file
 // to the destination
 func copyTemplate(source string, destination string) {
+	log.Printf("Copying from %s to %s", source, destination)
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		panic("No caller information")
@@ -107,6 +106,28 @@ func copyTemplate(source string, destination string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// copyTemplateFolder copies each file in the specified folder using
+// copyTemplate
+func copyTemplateFolder(source string, destination string) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("No caller information")
+	}
+
+	files, err := ioutil.ReadDir(path.Dir(filename) + "/static/" + source)
+
+	if err != nil {
+		panic(err)
+	}
+
+	for _, f := range files {
+		if !f.IsDir() {
+			copyTemplate(source+"/"+f.Name(), destination+"/"+f.Name())
+		}
+	}
+
 }
 
 var authorisationModels = []string{
