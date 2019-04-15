@@ -95,7 +95,6 @@ NoOverwriteGlobs = ["*.perm.go"]
 # schemas.gotmpl template with the "public" schema and output to
 # ./schemas/public/public.go
 [SchemaPaths]
-"fields.go" = "templates/fields.gotmpl"
 "db.go" = "templates/db.gotmpl"
 
 # EnumPaths is a is a map of output paths to template paths that tells Gnorm how

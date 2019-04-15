@@ -90,16 +90,17 @@ Update your config.yaml to the following:
 ```
 packageName: "github.com/example/todo"
 generate:
+  schemaName: "public"
   postgres:
   - modelName: "Todo"
-    modelPackage: "github.com/example/todo/gnorm/dbl"
-    modelPackageShort: "dbl"
+    modelStruct: "todo.Row"
+    modelPackage: "github.com/example/todo/models"
     postgresName: "Todo"
     primaryKey: "TodoID"
     primaryKeyType: "int"
   - modelName: "User"
+    modelStruct: "models.User"
     modelPackage: "github.com/example/todo/models"
-    modelPackageShort: "models"
     postgresName: "User"
     primaryKey: "UserID"
     primaryKeyType: "int"
@@ -114,33 +115,31 @@ type PageInfo {
 }
 ```
 
-gqlgen allows us to define our own struct to use for Todo instead of the automatically generated one, and that's what we'll do here.  Sometimes you may want to create your own, but in this case we'll just use the automatically generated database struct for Todo.  Update `gqlgen.yml` at the bottom with the following to tell gqlgen that we are going to provide the Todo model ourselves:
+gqlgen allows us to define our own struct to use for Todo instead of the automatically generated one, and that's what we'll do here.  We'll make use of the automatically generated database struct directly to simplify matters.  Update `gqlgen.yml` at the bottom with the following to tell gqlgen that we are going to provide the Todo model ourselves:
 
 ```
 models:
   Todo:
-    model: github.com/example/todo/gnorm/dbl.Todo
+    model: github.com/example/todo/gnorm/public/todo.Row
 ```
 
-Because we're separating the database representation of our data from the GraphQL API, we need to perform the translation between the database's model and our GraphQL model.  In this case, the translation is very simple because we told gqlgen to use our database model directly.  However, you may sometimes want to override this and perform your own translation.  Create the file `loader/todo.go` with the following content:
+Because we're separating the database representation of our data from the GraphQL API, we need to perform the translation between the database's model and our GraphQL model.  In this case, the translation is very simple because we're using the database model directly.  However, you may sometimes want to override this and perform your own translation.  Create the file `loader/todo.go` with the following content:
 
 ```
 package loader
 
 import (
 	"context"
-	"fmt"
 
-	"github.com/example/todo/gnorm/dbl"
-	"github.com/example/todo/models"
+	"github.com/example/todo/gnorm/public/todo"
 )
 
-func hydrateModelTodo(ctx context.Context, i dbl.TodoFull) (dbl.Todo) {
-	return i.Todo
+func hydrateModelTodo(ctx context.Context, i todo.Row) todo.Row {
+	return i
 }
 ```
 
-Because we're using the auto-generated model for User, we need to do some manual translation ourselves.  We could do the same as above, overriding the model with our own, but this demonstrates how it would look if we manually hydrated the models/User struct.  In `loader/user.go` we'll create the following:
+Because we're using the auto-generated model for User, we need to translate between the database record and GraphQL struct manually.  We could do the same as above, overriding the model with our own, but this demonstrates how it would look if we manually hydrated the models/User struct.  In `loader/user.go` we'll create the following:
 
 ```
 package loader
@@ -149,24 +148,17 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/gnorm/public/user"
 	"github.com/example/todo/models"
 )
 
-func hydrateModelUser(ctx context.Context, i dbl.UserFull) (o models.User) {
+func hydrateModelUser(ctx context.Context, i user.Row) (o models.User) {
 	o.ID = fmt.Sprintf("%d", i.UserID)
 	o.Username = i.Username
 	o.Admin = i.Admin
 
 	return
 }
-```
-
-In `loader/init.go`, update the runBatchLoaders() function with the ones for our new functions.  This lets us batch together some requests to reduce database calls:
-
-```
-	go Loader.runTodoBatcher()
-	go Loader.runUserBatcher()
 ```
 
 We also need to ensure the database is initialised.  Open up `server.go` and let's initialise the loader by adding the following early in the main() function (after env.Parse):
@@ -187,7 +179,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/gnorm/public/todo"
 	"github.com/example/todo/graph"
 	"github.com/example/todo/loader"
 	"github.com/example/todo/models"
@@ -204,13 +196,13 @@ func (r *Resolver) Query() graph.QueryResolver {
 
 type mutationResolver struct{ *Resolver }
 
-func (r *mutationResolver) CreateTodo(ctx context.Context, input models.NewTodo) (*dbl.Todo, error) {
+func (r *mutationResolver) CreateTodo(ctx context.Context, input models.NewTodo) (*todo.Row, error) {
 	panic("not implemented")
 }
 
 type queryResolver struct{ *Resolver }
 
-func (r *queryResolver) Todos(ctx context.Context) ([]dbl.Todo, error) {
+func (r *queryResolver) Todos(ctx context.Context) ([]todo.Row, error) {
 	all, _, _, err := loader.Loader.GetAllTodo(ctx, models.Filter{})
 	return all, err
 }
@@ -221,12 +213,12 @@ func (r *Resolver) Todo() graph.TodoResolver {
 
 type todoResolver struct{ *Resolver }
 
-func (t *todoResolver) User(ctx context.Context, obj *dbl.Todo) (*models.User, error) {
+func (t *todoResolver) User(ctx context.Context, obj *todo.Row) (*models.User, error) {
 	user, err := loader.Loader.GetUser(ctx, obj.UserID)
 	return &user, err
 }
 
-func (t *todoResolver) ID(ctx context.Context, obj *dbl.Todo) (string, error) {
+func (t *todoResolver) ID(ctx context.Context, obj *todo.Row) (string, error) {
 	return fmt.Sprintf("%d", obj.TodoID), nil
 }
 ```

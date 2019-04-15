@@ -34,12 +34,12 @@ var {{camel .ModelName}}MX sync.Mutex
 
 // Get{{.ModelName}} Returns {{.ModelName}} with given ID
 {{- $idName := snake .ModelName}}
-func (l *PostgresLoader) Get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}) (o models.{{.ModelName}}, err error) {
+func (l *PostgresLoader) Get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}) (o {{.ModelStruct}}, err error) {
 	return l.get{{.ModelName}}(ctx, id, l.pool)
 }
 
 // get{{.ModelName}} Returns {{.ModelName}} with given ID, using provided DB connection
-func (l *PostgresLoader) get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}, db gnorm.DB) (o models.{{.ModelName}}, err error) {
+func (l *PostgresLoader) get{{.ModelName}}(ctx context.Context, id {{.PrimaryKeyType}}, db gnorm.DB) (o {{.ModelStruct}}, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "Get{{.ModelName}}")
 	defer span.Finish()
 
@@ -125,7 +125,7 @@ func (l *PostgresLoader) run{{.ModelName}}Batcher() {
 }
 
 // GetAll{{.ModelName}} Returns an array of all {{.ModelName}} entries, using the provided filter
-func (l *PostgresLoader) GetAll{{.ModelName}}(ctx context.Context, filter models.Filter) (all []{{.ModelPackageShort}}.{{.ModelName}}, pi models.PageInfo, count int, err error) {
+func (l *PostgresLoader) GetAll{{.ModelName}}(ctx context.Context, filter models.Filter) (all []{{.ModelStruct}}, pi models.PageInfo, count int, err error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetAll{{.ModelName}}")
 	defer span.Finish()
 
@@ -163,7 +163,7 @@ func (l *PostgresLoader) GetAll{{.ModelName}}(ctx context.Context, filter models
 	}
 
 
-	all = make([]{{.ModelPackageShort}}.{{.ModelName}}, len(r))
+	all = make([]{{.ModelStruct}}, len(r))
 	for i, b := range r {
 		all[i] = hydrateModel{{.ModelName}}(ctx, b)
 	}

@@ -1,6 +1,9 @@
 package loader
 
-import "github.com/99designs/gqlgen/graphql"
+import (
+	"github.com/99designs/gqlgen/graphql"
+	"github.com/vektah/gqlparser/gqlerror"
+)
 
 func runBatchLoaders() {
 	log.Printf("Initialising batch loaders...")
