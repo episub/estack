@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+
 	"github.com/pkg/errors"
+	sq "github.com/Masterminds/squirrel"
 )
 
 var safeField = regexp.MustCompile(`^[a-zA-Z_0-9]+\z`)
@@ -98,5 +100,32 @@ func (j *Jsonb) Scan(src interface{}) error {
 		return errors.New("reading from DB into Jsonb, failed to convert to map[string]interface{}")
 	}
 
+	return nil
+}
+
+func PaginateCompare(fields []string, parentKey string, query string) (string, string) {
+	//FIX TO NOT INCLUDE CLIENT AN EXTRA TIME
+	var compLeft []string
+	var compRight []string
+
+	for _, f := range fields {
+		compLeft = append(compLeft, f)
+		compRight = append(compRight, fmt.Sprintf("(SELECT %s FROM (%s) AS sd WHERE sd.%s = ?)", f, query, parentKey))
+	}
+
+	return strings.Join(compLeft, ", "), strings.Join(compRight, ", ")
+}
+
+// Qry Returns a new squirrel query builder.  Will one day check database
+// type and return appropriate type
+func Qry() sq.StatementBuilderType {
+	return sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+}
+
+func rollbackErr(err error, tx *pgx.Tx) error {
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	return nil
 }

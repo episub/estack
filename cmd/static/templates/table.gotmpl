@@ -7,6 +7,8 @@ import (
 	"{{.Params.RootImport}}/{{toLower .Table.Schema.Name}}/enum"
 	sq "github.com/Masterminds/squirrel"
 	uuid "github.com/gofrs/uuid"
+	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 )
 
@@ -47,7 +49,7 @@ var (
 )
 
 // All retrieves all rows from '{{ $table }}' as a slice of Row.
-func All(ctx context.Context, db {{$rootPkg}}.DB) ([]*Row, error) {
+func All(ctx context.Context, db {{$rootPkg}}.DB) ([]Row, error) {
 	qry := gnorm.Qry().Select(`{{ join .Table.Columns.DBNames.Sorted ", " }}`)
 	qry.From(`{{$schema}}.{{$table}}`)
 	sqlstr, _, err := qry.ToSql()
@@ -55,7 +57,7 @@ func All(ctx context.Context, db {{$rootPkg}}.DB) ([]*Row, error) {
 		return nil, err
 	}
 
-	var vals []*Row
+	var vals []Row
 	q, err := db.QueryContext(ctx, sqlstr)
 	if err != nil {
 		return nil, errors.Wrap(err, "query {{.Table.Name}}")
@@ -68,7 +70,7 @@ func All(ctx context.Context, db {{$rootPkg}}.DB) ([]*Row, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "all {{.Table.Name}}")
 		}
-		vals = append(vals, &r)
+		vals = append(vals, r)
 	}
 	return vals, nil
 }
@@ -95,7 +97,7 @@ func CountQuery(ctx context.Context, db gnorm.DB, where []sq.Sqlizer) (int, erro
 }
 
 // Query retrieves rows from '{{ $table }}' as a slice of Row.
-func Query(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) ([]*Row, error) {
+func Query(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) ([]Row, error) {
 	qry := gnorm.Qry().Select(`{{ join .Table.Columns.DBNames ", " }}`)
 	qry = qry.From("{{$schema}}.{{ $table }}")
 	for _, w := range where {
@@ -107,7 +109,7 @@ func Query(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) ([]*Row,
 		return nil, err
 	}
 
-	var vals []*Row
+	var vals []Row
 	q, err := db.QueryContext(ctx, sqlstr, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, "query {{.Table.Name}}")
@@ -120,7 +122,7 @@ func Query(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) ([]*Row,
 		if err != nil {
 			return nil, errors.Wrap(err, "query {{.Table.Name}}")
 		}
-		vals = append(vals, &r)
+		vals = append(vals, r)
 	}
 	return vals, nil
 }
@@ -143,35 +145,27 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 
 	qry := PaginatedQuery
 
-	idx := 1
 	for _, w := range where {
 		qry = qry.Where(w)
 	}
 
-	sqstr, _, err := qry.ToSql()
+	sqlstr, args, err := qry.ToSql()
 	if err != nil {
 		return
 	}
 
 	// Get the total number of rows possible with our existing query, before we add the cursor related conditional
-  qry := fmt.Sprintf("SELECT count(*) FROM (%s) AS xyz", sqlstr)
+  countSQL := fmt.Sprintf("SELECT count(*) FROM (%s) AS xyz", sqlstr)
 	span.LogFields(
-		log.String("countQuery", qry),
+		log.String("countQuery", countSQL),
 	)
-	err = db.QueryRow(qry, whereValues...).Scan(&total)
+	err = db.QueryRowContext(ctx, countSQL, args...).Scan(&total)
 
 	if err != nil {
 		return
 	}
 
 	if cursor != nil {
-		if hasWhere {
-			sqlstr += " AND"
-		} else {
-			sqlstr += " WHERE"
-			hasWhere = true
-		}
-
 		var fields []string
 		//var comparisons []string
 		for _, o := range order.Fields {
@@ -184,14 +178,16 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 		}
 
 		// Create the key function that allows us to limit ourselves to only results following the cursor.  We always sort by the primary key at the end to ensure a deterministic ordering of results.  No result left behind.
-		compLeft, compRight := paginateCompare(order.Fields, "{{.Table.DBName}}", PaginatedQuery, idx)
+		compLeft, compRight := gnorm.PaginateCompare(order.Fields, "{{.Table.DBName}}", sqlstr)
 		if len(compLeft) > 0 {
-			sqlstr += fmt.Sprintf(" (%s, {{$primaryKey.DBName}}) %s (%s, $%d)", compLeft, lgt, compRight, idx)
+			sqlstr += fmt.Sprintf(" (%s, {{$primaryKey.DBName}}) %s (%s, ?)", compLeft, lgt, compRight)
 		} else {
-			sqlstr += fmt.Sprintf(" ({{$primaryKey.DBName}}) %s ($%d)", lgt, idx)
+			sqlstr += fmt.Sprintf(" ({{$primaryKey.DBName}}) %s (?)", lgt)
 		}
-		idx++
-		whereValues = append(whereValues, *cursor)
+		for  range order.Fields {
+			args = append(args, *cursor)
+		}
+		args = append(args, *cursor)
 
 		// Add this after the above so that it doesn't get added twice to the comparison part, where we explicitly add it
 	}
@@ -208,11 +204,11 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 		sqlstr += fmt.Sprintf(" LIMIT %d", count + 1)
 	}
 
-	qry = fmt.Sprintf("SELECT {{$primaryKey.DBName}} FROM (%s) AS xyz", sqlstr)
+	pageQuery := fmt.Sprintf("SELECT {{$primaryKey.DBName}} FROM (%s) AS xyz", sqlstr)
 	span.LogFields(
-		log.String("query", qry),
+		log.String("query", pageQuery),
 	)
-	q, err := db.Query(qry, whereValues...)
+	q, err := db.QueryContext(ctx, pageQuery, args...)
 	if err != nil {
 		return
 	}
@@ -231,10 +227,10 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 	}
 
 
-	fetched, err := Query{{$primaryKey.Name}}Full(ctx, db, []gnorm.WhereClause{ {{$primaryKey.Name}}{{$primaryKey.Name}}Col.In(fetchIDs)})
+	fetched, err := Query(ctx, db, []sq.Sqlizer{gnorm.In{{pascal $primaryKey.Type}}({{$primaryKey.Name}}Col, fetchIDs)})
 
 	// Now create vals:
-	vals = make([]{{$primaryKey.Name}}Full, len(fetchIDs))
+	vals = make([]Row, len(fetchIDs))
 	
 	found := 0
 	for i, id := range fetchIDs {
@@ -282,12 +278,12 @@ func Find(ctx context.Context, db {{$rootPkg}}.DB,
 {{- range .Table.PrimaryKeys.DBNames.Sorted}}
 	{{- with index $colsByName .}}
 	{{camel .DBName}} {{.Type}},{{end}}
-{{end -}}) (*Row, error) {
+{{end -}}) (Row, error) {
 	const sqlstr = `SELECT
 		{{ join .Table.Columns.DBNames.Sorted ", " }}
 	FROM {{$schema}}.{{ $table }} WHERE ( {{join .Table.PrimaryKeys.DBNames.Sorted ", "}} = {{template "values" (len .Table.PrimaryKeys)}} )`
 
-	r := &Row{}
+	r := Row{}
 	err := db.QueryRowContext(ctx, sqlstr,
 	{{- range .Table.PrimaryKeys.DBNames.Sorted}}
 		{{camel .}},
@@ -295,7 +291,7 @@ func Find(ctx context.Context, db {{$rootPkg}}.DB,
 		{{- if .IsArray }}pq.Array(&r.{{ .Name }}),{{- else -}}&r.{{ .Name }},{{ end }}{{end}}
 {{end -}})
 	if err != nil {
-		return nil, errors.Wrap(err, "find {{.Table.Name}}")
+		return Row{}, errors.Wrap(err, "find {{.Table.Name}}")
 	}
 	return r, nil
 }

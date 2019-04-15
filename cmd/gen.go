@@ -84,7 +84,6 @@ func generateGnorm(config Config) {
 
 	//copyTemplate("gnorm/db.go", "gnorm/db.go")
 	copyTemplate("gnorm/where.go", "gnorm/where.go")
-	copyTemplate("gnorm/util.go", "gnorm/util.go")
 
 }
 
