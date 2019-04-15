@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var safeField = regexp.MustCompile(`^[a-zA-Z_0-9]+\z`)
+
 // DB is the common interface for database operations.
 //
 // This should work with database/sql.DB and database/sql.Tx.
@@ -18,6 +20,49 @@ type DB interface {
 	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
 	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+}
+
+// Order Specifies an order for field
+type Order struct {
+	Fields     []string
+	Descending bool
+}
+
+// NewOrder Convenience function to return new order
+func NewOrder(descending bool) Order {
+	return Order{Descending: descending}
+}
+
+// AddField Add a field to sort by
+func (o *Order) AddField(field string) error {
+	// Extra layer to help prevent SQL injection attack
+	if !safeField.MatchString(field) {
+		return fmt.Errorf("Invalid field for sorting")
+	}
+
+	o.Fields = append(o.Fields, field)
+
+	return nil
+}
+
+// Length Returns how many fields are being sorted by
+func (o *Order) Length() int {
+	return len(o.Fields)
+}
+
+// String Returns an order string
+func (o *Order) String() string {
+	ord := "ASC"
+
+	if o.Descending {
+		ord = "DESC"
+	}
+
+	str := strings.Join(o.Fields, fmt.Sprintf(" %s, ", ord))
+	if len(o.Fields) == 0 {
+		str = "true"
+	}
+	return str + " " + ord
 }
 
 // Bytea is a wrapper around byte arrays specifically for bytea column types in postgres.

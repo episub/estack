@@ -286,25 +286,23 @@ func postgresBuild(config Config, folder string) error {
 		}
 
 		err = postgresTemplate.Execute(f, struct {
-			Config            Config
-			Timestamp         time.Time
-			ModelName         string
-			ModelPackage      string
-			ModelPackageShort string
-			PmName            string
-			PK                string
-			PrimaryKeyType    string
-			Create            bool
+			Config         Config
+			Timestamp      time.Time
+			ModelName      string
+			ModelPackage   string
+			PmName         string
+			PK             string
+			PrimaryKeyType string
+			Create         bool
 		}{
-			Config:            config,
-			Timestamp:         time.Now(),
-			ModelName:         b.ModelName,
-			ModelPackage:      b.ModelPackage,
-			ModelPackageShort: b.ModelPackageShort,
-			PmName:            b.PmName,
-			PK:                b.PK,
-			PrimaryKeyType:    b.PrimaryKeyType,
-			Create:            b.Create,
+			Config:         config,
+			Timestamp:      time.Now(),
+			ModelName:      b.ModelName,
+			ModelPackage:   b.ModelPackage,
+			PmName:         b.PmName,
+			PK:             b.PK,
+			PrimaryKeyType: b.PrimaryKeyType,
+			Create:         b.Create,
 		})
 		f.Close()
 
