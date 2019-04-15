@@ -1,13 +1,16 @@
 package models
 
-import "{{.Config.PackageName}}/gnorm"
+import (
+	"{{.Config.PackageName}}/gnorm"
+	sq "github.com/Masterminds/squirrel"
+)
 
 // Filter Details on order and filters for a particular search request
 type Filter struct {
 	Cursor *string             // If provided, returns results from the cursor
 	Count  int64               // If 0, returns all
 	Before bool                // If true, returns count results before cursor, otherwise count results after cursor
-	Where  []gnorm.WhereClause // Filters to apply
+	Where  []sq.Sqlizer        // Filters to apply
 	Order  gnorm.Order         // Ordering of fields
 }
 

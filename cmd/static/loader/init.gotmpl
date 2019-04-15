@@ -56,11 +56,6 @@ func InitialiseLoader(dbName string, dbUser string, dbPass string, dbHost string
 	return nil
 }
 
-func runBatchLoaders() {
-	log.Printf("Initialising batch loaders...")
-	log.Printf("...done")
-}
-
 func sanitiseError(err error) error {
 	if err == nil {
 		return nil

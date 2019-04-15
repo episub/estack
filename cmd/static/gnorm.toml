@@ -11,12 +11,12 @@ ConnStr = "dbname=estack host=127.0.0.1 sslmode=disable user=estack password=est
 DBType = "postgres"
 
 # Schemas holds the names of schemas to generate code for.
-Schemas = ["public"]
+Schemas = ["public","product_catalog"]
 
 # PluginDirs a list of paths that will be used for finding plugins.  The list
 # will be traversed in order, looking for a specifically named plugin. The first
 # plugin that is found will be the one used.
-PluginDirs = ["plugins"]
+PluginDirs = ["templates/plugin"]
 
 # NameConversion defines how the DBName of tables, schemas, and enums are
 # converted into their Name value.  This is a template that may use all the
@@ -37,7 +37,7 @@ IncludeTables = []
 # generation. You cannot set ExcludeTables if IncludeTables is set.  By
 # default, tables will be excluded from all schemas.  To specify tables for
 # a specific schema only, use the schema.tablenmae format.
-ExcludeTables = ["xyzzx"]
+ExcludeTables = ["schema_version"]
 
 # PostRun is a command with arguments that is run after each file is generated
 # by GNORM.  It is generally used to reformat the file, but it can be for any
@@ -45,7 +45,7 @@ ExcludeTables = ["xyzzx"]
 # environment variable may be used, which will expand to the name of the file
 # that was just generated.
 # Example to run goimports on each output file:
-PostRun = ["echo", "$GNORMFILE"]
+PostRun = ["goimports", "-w", "$GNORMFILE"]
 
 # OutputDir is the directory relative to the project root (where the
 # gnorm.toml file is located) in which all the generated files are written
@@ -81,6 +81,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 # "public.users" table to ./public/users/users.go.
 [TablePaths]
 "{{"{{"}}.Schema{{"}}"}}/tables/{{"{{"}}.Table{{"}}"}}.go" = "templates/table.gotmpl"
+"{{"{{"}}toLower .Schema{{"}}"}}/{{"{{"}}toLower .Table{{"}}"}}/{{"{{"}}toLower .Table{{"}}"}}.go" = "templates/table.gotmpl"
 
 # SchemaPaths iis a map of output paths to template paths that tells Gnorm how
 # to render and output its schema info.  Each template will be rendered with
@@ -94,7 +95,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 # schemas.gotmpl template with the "public" schema and output to
 # ./schemas/public/public.go
 [SchemaPaths]
-"{{"{{"}}.Schema{{"}}"}}.go" = "templates/schema.gotmpl"
+"db.go" = "templates/db.gotmpl"
 
 # EnumPaths is a is a map of output paths to template paths that tells Gnorm how
 # to render and output its enum info.  Each template will be rendered with each
@@ -110,7 +111,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 # enums.gotmpl template with data from the "public.book_type" enum to
 # ./gnorm/public/enums/users.go.
 [EnumPaths]
-"{{"{{"}}.Schema{{"}}"}}/enums/{{"{{"}}.Enum{{"}}"}}.go" = "templates/enum.gotmpl"
+"{{"{{"}}toLower .Schema{{"}}"}}/enum/{{"{{"}}toLower .Enum{{"}}"}}.go" = "templates/enum.gotmpl"
 
 # TypeMap is a mapping of database type names to replacement type names
 # (generally types from your language for deserialization), specifically for
@@ -125,16 +126,24 @@ NoOverwriteGlobs = ["*.perm.go"]
 "timestamp without time zone" = "time.Time"
 "text" = "string"
 "boolean" = "bool"
-"uuid" = "string"
+# from "github.com/gofrs/go.uuid"
+"uuid" = "uuid.UUID"
 "character varying" = "string"
 "integer" = "int"
 "smallint" = "int"
+"int4" = "int32"
+"int8" = "int64"
+"bigint" = "int64"
 "numeric" = "float64"
-"bytea" = "[]byte"
 "date" = "pqt.Date"
-"jsonb" = "string"
 "interval" = "string"
 "varchar" = "string"
+# from "github.com/lib/pq/hstore"
+"hstore" = "hstore.Hstore"
+# note that the package name here has to be kept in sync with the RootPkg above.
+"jsonb" = "generated.Jsonb"
+# the package name here needs to be kept in sync with the enum template's package name
+"bytea" = "generated.Bytea"
 
 # NullableTypeMap is a mapping of database type names to replacement type names
 # (generally types from your language for deserialization), specifically for
@@ -145,19 +154,21 @@ NoOverwriteGlobs = ["*.perm.go"]
 # of your configuration file.
 # Example for mapping postgres types to Go types:
 [NullableTypeMap]
+"boolean" = "sql.NullBool"
+"bytea" = "pqt.NullBytes"
+"character varying" = "sql.NullString"
+"date" = "pqt.NullDate"
+"hstore" = "hstore.Hstore"
+"integer" = "sql.NullInt64"
+"interval" = "*string"
+# note that the package name here has to be kept in sync with the RootPkg above.
+"jsonb" = "generated.Jsonb"
+"numeric" = "sql.NullFloat64"
+"smallint" = "sql.NullInt64"
+"text" = "sql.NullString"
 "timestamp with time zone" = "pq.NullTime"
 "timestamp without time zone" = "pq.NullTime"
-"text" = "sql.NullString"
-"boolean" = "sql.NullBool"
-"uuid" = "sql.NullString"
-"character varying" = "sql.NullString"
-"integer" = "sql.NullInt64"
-"smallint" = "sql.NullInt64"
-"numeric" = "sql.NullFloat64"
-"bytea" = "pqt.NullBytes"
-"date" = "pqt.NullDate"
-"jsonb" = "sql.NullString"
-"interval" = "*string"
+"uuid" = "uuid.NullUUID"
 "varchar" = "sql.NullString"
 
 # Params contains any data you may want to pass to your templates.  This is a
@@ -166,6 +177,10 @@ NoOverwriteGlobs = ["*.perm.go"]
 # .Params value for all templates.
 [Params]
 packageName = "{{.}}"
+RootPkg = "gnorm"
+RootImport = "{{.}}/gnorm"
+CreatedAtField = "created_at"
+UpdatedAtField = "updated_at"
 
 # TemplateEngine, if specified, describes a command line tool to run to
 # render your templates, allowing you to use your preferred templating

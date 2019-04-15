@@ -17,6 +17,7 @@ type Generate struct {
 	// ProtectGnorm When true, prevents gnorm's default files from being
 	// overwritten
 	ProtectGnorm bool               `yaml:"protectGnorm"`
+	SchemaName   string             `yaml:"schemaName"`
 	Resolvers    []ResolverGenerate `yaml:"resolvers"`
 	Postgres     []PostgresGenerate `yaml:"postgres"`
 }
@@ -35,13 +36,13 @@ type ResolverGenerate struct {
 
 // PostgresGenerate Which postgres helper functions to generate code for
 type PostgresGenerate struct {
-	ModelName         string `yaml:"modelName"`         // Name of model used by GraphQL
-	ModelPackage      string `yaml:"modelPackage"`      // Name of the package containing the model
-	ModelPackageShort string `yaml:"modelPackageShort"` // Last part of the package name
-	PmName            string `yaml:"postgresName"`      // Name of postgres data object
-	PK                string `yaml:"primaryKey"`        // Go struct for database name for primary key field
-	PrimaryKeyType    string `yaml:"primaryKeyType"`    // Go type for primary key
-	Create            bool   `yaml:"create"`            // Generate create/update related functions
+	ModelName      string `yaml:"modelName"`      // Name of model used by GraphQL
+	ModelStruct    string `yaml:"modelStruct"`    // Struct to use for GraphQL model
+	ModelPackage   string `yaml:"modelPackage"`   // Path of the package containing the model
+	PmName         string `yaml:"postgresName"`   // Name of postgres data object
+	PK             string `yaml:"primaryKey"`     // Go struct for database name for primary key field
+	PrimaryKeyType string `yaml:"primaryKeyType"` // Go type for primary key
+	Create         bool   `yaml:"create"`         // Generate create/update related functions
 }
 
 func readConfig(filename string) (Config, error) {

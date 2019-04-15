@@ -18,6 +18,7 @@ import (
 	"gnorm.org/gnorm/environ"
 )
 
+var loaderTemplate *template.Template
 var resolverTemplate *template.Template
 var postgresTemplate *template.Template
 var filterTemplate *template.Template
@@ -54,6 +55,7 @@ var genCmd = cli.Command{
 		generateGnorm(config)
 
 		var tasks []Task
+		tasks = append(tasks, Task{Folder: "loader", Build: loaderBuild})
 		tasks = append(tasks, Task{Folder: "loader", Build: postgresBuild})
 		tasks = append(tasks, Task{Folder: "models", Build: modelsBuild})
 		tasks = append(tasks, Task{Folder: "resolvers", Build: resolverBuild})
@@ -75,27 +77,22 @@ func generateGnorm(config Config) {
 	// Delete any existing gnorm files so there are no legacy ones around
 	runCommand("rm -rf gnorm")
 	if !config.Generate.ProtectGnorm {
-		copyTemplate("templates/table.gotmpl", "templates/table.gotmpl")
-		copyTemplate("templates/enum.gotmpl", "templates/enum.gotmpl")
-		copyTemplate("templates/schema.gotmpl", "templates/schema.gotmpl")
+		copyTemplateFolder("templates", "templates")
 	}
 
 	gcli.ParseAndRun(env)
 
-	runCommand(fmt.Sprintf("mv %s %s", "gnorm/Public/tables", "gnorm/dbl"))
-	runCommand(fmt.Sprintf("rm -rf %s", "gnorm/Public"))
 	runCommand(fmt.Sprintf("goimports -w %s", "gnorm/."))
-	runCommand(fmt.Sprintf("goimports -w %s", "gnorm/dbl/."))
 
-	copyTemplate("gnorm/db.go", "gnorm/db.go")
+	//copyTemplate("gnorm/db.go", "gnorm/db.go")
 	copyTemplate("gnorm/where.go", "gnorm/where.go")
-	copyTemplate("gnorm/dbl/util.go", "gnorm/dbl/util.go")
 
 }
 
 // copyTemplate Copies files from the template folder relative to *this* file
 // to the destination
 func copyTemplate(source string, destination string) {
+	log.Printf("Copying from %s to %s", source, destination)
 	_, filename, _, ok := runtime.Caller(0)
 	if !ok {
 		panic("No caller information")
@@ -110,6 +107,28 @@ func copyTemplate(source string, destination string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// copyTemplateFolder copies each file in the specified folder using
+// copyTemplate
+func copyTemplateFolder(source string, destination string) {
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("No caller information")
+	}
+
+	files, err := ioutil.ReadDir(path.Dir(filename) + "/static/" + source)
+
+	if err != nil {
+		panic(err)
+	}
+
+	for _, f := range files {
+		if !f.IsDir() {
+			copyTemplate(source+"/"+f.Name(), destination+"/"+f.Name())
+		}
+	}
+
 }
 
 var authorisationModels = []string{
@@ -252,6 +271,32 @@ func modelsBuild(config Config, folder string) error {
 	return goImports(fileName)
 }
 
+func loaderBuild(config Config, folder string) error {
+	fileName := "generated.go"
+	if len(folder) > 0 {
+		fileName = folder + "/" + fileName
+	}
+	f, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+
+	err = loaderTemplate.Execute(f, struct {
+		Timestamp time.Time
+		Config    Config
+	}{
+		Timestamp: time.Now(),
+		Config:    config,
+	})
+	f.Close()
+
+	if err != nil {
+		return err
+	}
+
+	return goImports(fileName)
+}
+
 func postgresBuild(config Config, folder string) error {
 	// Core models
 	for _, b := range config.Generate.Postgres {
@@ -268,25 +313,25 @@ func postgresBuild(config Config, folder string) error {
 		}
 
 		err = postgresTemplate.Execute(f, struct {
-			Config            Config
-			Timestamp         time.Time
-			ModelName         string
-			ModelPackage      string
-			ModelPackageShort string
-			PmName            string
-			PK                string
-			PrimaryKeyType    string
-			Create            bool
+			Config         Config
+			Timestamp      time.Time
+			ModelName      string
+			ModelStruct    string
+			ModelPackage   string
+			PmName         string
+			PK             string
+			PrimaryKeyType string
+			Create         bool
 		}{
-			Config:            config,
-			Timestamp:         time.Now(),
-			ModelName:         b.ModelName,
-			ModelPackage:      b.ModelPackage,
-			ModelPackageShort: b.ModelPackageShort,
-			PmName:            b.PmName,
-			PK:                b.PK,
-			PrimaryKeyType:    b.PrimaryKeyType,
-			Create:            b.Create,
+			Config:         config,
+			Timestamp:      time.Now(),
+			ModelName:      b.ModelName,
+			ModelStruct:    b.ModelStruct,
+			ModelPackage:   b.ModelPackage,
+			PmName:         b.PmName,
+			PK:             b.PK,
+			PrimaryKeyType: b.PrimaryKeyType,
+			Create:         b.Create,
 		})
 		f.Close()
 
