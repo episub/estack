@@ -18,6 +18,7 @@ const TableName = "{{.Table.DBName}}"
 {{$table := .Table.DBName -}}
 {{$schema := .Table.Schema.DBName -}}
 {{$hasCreatedAt := ne (len (.Table.Columns.DBNames.Except (makeSlice .Params.CreatedAtField))) (len .Table.Columns.DBNames)}}
+{{$hasUpdatedAt := ne (len (.Table.Columns.DBNames.Except (makeSlice .Params.UpdatedAtField))) (len .Table.Columns.DBNames)}}
 {{$colsByName := .Table.ColumnsByName }}
 
 {{- $nonPKDBNames := .Table.Columns.DBNames.Sorted.Except .Table.PrimaryKeys.DBNames}}
@@ -75,9 +76,9 @@ func All(ctx context.Context, db {{$rootPkg}}.DB) ([]*Row, error) {
 // CountQuery retrieve one row from '{{ $table }}'.
 func CountQuery(ctx context.Context, db gnorm.DB, where []sq.Sqlizer) (int, error) {
 	qry := gnorm.Qry().Select(`count(*) as count`)
-	qry.From("{{$schema}}.{{ $table }}")
+	qry = qry.From("{{$schema}}.{{ $table }}")
 	for _, w := range where {
-		qry.Where(w)
+		qry = qry.Where(w)
 	}
 
 	sqlstr, args, err := qry.ToSql()
@@ -96,9 +97,9 @@ func CountQuery(ctx context.Context, db gnorm.DB, where []sq.Sqlizer) (int, erro
 // Query retrieves rows from '{{ $table }}' as a slice of Row.
 func Query(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) ([]*Row, error) {
 	qry := gnorm.Qry().Select(`{{ join .Table.Columns.DBNames ", " }}`)
-	qry.From("{{$schema}}.{{ $table }}")
+	qry = qry.From("{{$schema}}.{{ $table }}")
 	for _, w := range where {
-		qry.Where(w)
+		qry = qry.Where(w)
 	}
 
 	sqlstr, args, err := qry.ToSql()
@@ -133,10 +134,7 @@ placeholders of the form $1, $2, etc */}}
 	{{join $indices ", " -}}
 {{end}}
 
-{{$hasUpdatedAt := ne (len (.Table.Columns.DBNames.Except (makeSlice "updated_at"))) (len .Table.Columns.DBNames)}}
 
-{{- $insertCols := plugin "plugin" "insertCols" .Table.Columns}}
-{{- $insertFields := join (plugin "plugin" "insertFields" .Table.Columns) "," }}
 {{- $PKFields := join (.Table.PrimaryKeys.Names.Sorted.Sprintf "r.%s") ", "}}
 {{- $PKScanFields := join (.Table.PrimaryKeys.Names.Sorted.Sprintf "&r.%s") ", "}}
 
@@ -168,122 +166,6 @@ func Find(ctx context.Context, db {{$rootPkg}}.DB,
 }
 {{end}}
 
-
-// Insert inserts the row into the database.
-func Insert(ctx context.Context, db {{$rootPkg}}.DB, r *Row) error {
-	const sqlstr = `INSERT INTO {{$schema}}.{{ $table }} ` +
-		{{- if gt (len $insertCols) 0}}
-		`(
-			{{ join $insertCols ", " }}
-		) VALUES (
-			{{template "values" (len $insertCols) }}
-		) ` +
-		{{- else}}
-		`DEFAULT VALUES ` +
-		{{- end}}
-		`RETURNING
-			{{- if $hasCreatedAt -}}
-			{{$params.CreatedAtField}},
-			{{- end -}}
-			{{- if $hasUpdatedAt -}}
-			{{$params.UpdatedAtField}}, 
-			{{- end }}
-			{{join .Table.PrimaryKeys.DBNames.Sorted ", "}}
-		`
-
-	err := db.QueryRowContext(ctx, sqlstr,
-	{{- range $insertCols}}{{with index $colsByName .}}
-		{{- if .IsArray }}pq.Array(&r.{{ .Name }}),{{- else -}}&r.{{ .Name }},{{ end }}
-	{{end}}
-{{end -}}).Scan(
-	{{- if $hasCreatedAt -}}
-		&r.{{pascal $params.CreatedAtField}},
-	{{- end -}}
-	{{- if $hasUpdatedAt -}}
-		&r.{{pascal $params.UpdatedAtField}},
-	{{- end -}}
-	{{$PKScanFields}})
-	return errors.Wrap(err, "insert {{.Table.Name}}")
-}
-
-{{if and $hasUpdatedAt (gt (len $insertCols) 0)}}
-// Update updates the Row in the database.
-func Update(ctx context.Context, db {{$rootPkg}}.DB, r *Row) error {
-	const sqlstr = `UPDATE {{$schema}}.{{ $table }} SET (
-			{{join $insertCols ", "}}
-		) = (
-			{{ template "values" (len $insertCols) }}
-		) WHERE
-	        {{$last := sum (len .Table.PrimaryKeys) (len $insertCols)}} 
-	  {{- $first := inc (len $insertCols)}}
-	  {{- range $x, $name := .Table.PrimaryKeys.DBNames.Sorted -}}
-		{{$name}} = ${{sum $first $x}}{{if lt (sum $x $first) $last}} AND {{end}}
-	  {{- end}}
-		RETURNING
-			created_at, updated_at
-		`
-
-		err := db.QueryRowContext(ctx, sqlstr, {{$insertFields}}, {{$PKFields}}).Scan(&r.CreatedAt, &r.UpdatedAt)
-		return errors.Wrap(err, "update {{.Table.Name}}:")
-}
-{{end}}
-
-// InsertIgnore inserts the row into the database but ignores conflicts
-func InsertIgnore(ctx context.Context, db gnorm.DB, r *Row, constraint string) error {
-	sqlstr := `INSERT INTO {{$schema}}.{{ $table }} ` +
-		{{- if gt (len $insertCols) 0}}
-		`(
-			{{ join $insertCols ", " }}
-		) VALUES (
-			{{template "values" (len $insertCols) }}
-		) ` +
-		{{- else}}
-		`DEFAULT VALUES ` +
-		{{- end}}
-		`ON CONFLICT ON CONSTRAINT ` + constraint + ` DO NOTHING `
-	_, err := db.ExecContext(ctx, sqlstr, {{$insertFields}})
-	return errors.Wrap(err, "insert ignore {{.Table.Name}}")
-}
-
-// AppendInt64 adds a value to a field
-func AppendInt64(ctx context.Context, db {{$rootPkg}}.DB, name string, value interface{}, where []sq.Sqlizer) (int64, error) {
-	idx := 2
-	sqlstr := `UPDATE {{$schema}}.{{ $table }} SET ` +
-		name + " = array_append(" + name + ", $1::bigint) " +
-		` WHERE ` +
-		where.String(&idx)
-
-	res, err := db.ExecContext(ctx, sqlstr, append([]interface{}{ value }, where.Values()...)...)
-	if err != nil {
-		return 0, errors.Wrap(err, "append_int64 {{.Table.Name}}")
-	}
-	return res.RowsAffected()
-}
-
-{{if and .Table.HasPrimaryKey (gt (len $insertFields) 0)}}
-// Upsert performs an insert-or-update in one DB call for {{ .Table.Name }}.
-// Unlike insert, upsert requires that you have set any IDs on the row you're upserting.
-// NOTE: PostgreSQL 9.5+ only
-func Upsert(ctx context.Context, db {{$rootPkg}}.DB, r *Row) error {
-	{{$upsertCols := .Table.Columns.DBNames.Sorted.Except (makeSlice "updated_at" "created_at")}}
-	const sqlstr = `INSERT INTO {{$schema}}.{{ $table }} (
-		{{join $upsertCols ", "}}
-	) VALUES (
-		{{template "values" (len $upsertCols) }}
-	) ON CONFLICT ({{join .Table.PrimaryKeys.DBNames.Sorted ", " }}) DO UPDATE SET (
-		EXCLUDED.{{ join $upsertCols ", EXCLUDED." }}
-		{{join $upsertCols ", "}}
-	) = (
-		{{ template "values" (len $upsertCols) }}
-	)`
-
-	{{$upsertNames := .Table.Columns.Names.Sorted.Except (makeSlice "UpdatedAt" "CreatedAt")}}
-	{{$upsertFields := join ($upsertNames.Sprintf "r.%s") ", " }}
-
-	_, err := db.ExecContext(ctx, sqlstr, {{$upsertFields}})
-	return errors.Wrap(err, "upsert {{.Table.Name}}")
-}
-{{end}}
 
 {{if .Table.HasPrimaryKey }}
 // Delete deletes the Row from the database. Returns the number of items deleted.
@@ -319,18 +201,23 @@ func Delete( ctx context.Context,
 
 // DeleteWhere deletes Rows from the database and returns the number of rows deleted.
 func DeleteWhere(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) (int64, error) {
-	const origsqlstr = `DELETE FROM {{$schema}}.{{ $table }} WHERE (`
+	qry := gnorm.Qry().Delete("")
+	qry = qry.From("{{$schema}}.{{ $table }}")
+	for _, w := range where {
+		qry = qry.Where(w)
+	}
 
-	idx := 1
-	sqlstr := origsqlstr + where.String(&idx) + ") "
+	sqlstr, args, err := qry.ToSql()
+	if err != nil {
+		return 0, err
+	}
 
-	res, err := db.ExecContext(ctx, sqlstr, where.Values()...)
+	res, err := db.ExecContext(ctx, sqlstr, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, "delete {{.Table.Name}}")
 	}
 	return res.RowsAffected()
 }
-
 
 // DeleteAll deletes all Rows from the database and returns the number of rows deleted.
 func DeleteAll(ctx context.Context, db {{$rootPkg}}.DB) (int64, error) {
