@@ -58,7 +58,7 @@ func All(ctx context.Context, db {{$rootPkg}}.DB) ([]Row, error) {
 	}
 
 	var vals []Row
-	q, err := db.QueryContext(ctx, sqlstr)
+	q, err := db.Query(sqlstr)
 	if err != nil {
 		return nil, errors.Wrap(err, "query {{.Table.Name}}")
 	}
@@ -89,7 +89,7 @@ func CountQuery(ctx context.Context, db gnorm.DB, where []sq.Sqlizer) (int, erro
 	}
 
 	count := 0
-	err = db.QueryRowContext(ctx, sqlstr, args...).Scan(&count)
+	err = db.QueryRow(sqlstr, args...).Scan(&count)
 	if err != nil {
 		return 0, errors.Wrap(err, "count {{.Table.Name}}")
 	}
@@ -110,7 +110,7 @@ func Query(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) ([]Row, 
 	}
 
 	var vals []Row
-	q, err := db.QueryContext(ctx, sqlstr, args...)
+	q, err := db.Query(sqlstr, args...)
 	if err != nil {
 		return nil, errors.Wrap(err, "query {{.Table.Name}}")
 	}
@@ -159,7 +159,7 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 	span.LogFields(
 		log.String("countQuery", countSQL),
 	)
-	err = db.QueryRowContext(ctx, countSQL, args...).Scan(&total)
+	err = db.QueryRow(countSQL, args...).Scan(&total)
 
 	if err != nil {
 		return
@@ -208,7 +208,7 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 	span.LogFields(
 		log.String("query", pageQuery),
 	)
-	q, err := db.QueryContext(ctx, pageQuery, args...)
+	q, err := db.Query(pageQuery, args...)
 	if err != nil {
 		return
 	}
@@ -284,7 +284,7 @@ func Find(ctx context.Context, db {{$rootPkg}}.DB,
 	FROM {{$schema}}.{{ $table }} WHERE ( {{join .Table.PrimaryKeys.DBNames.Sorted ", "}} = {{template "values" (len .Table.PrimaryKeys)}} )`
 
 	r := Row{}
-	err := db.QueryRowContext(ctx, sqlstr,
+	err := db.QueryRow(sqlstr,
 	{{- range .Table.PrimaryKeys.DBNames.Sorted}}
 		{{camel .}},
 	{{end -}}).Scan({{- range .Table.Columns.DBNames.Sorted}}{{with index $colsByName .}}
@@ -320,7 +320,7 @@ func Upsert(ctx context.Context, db gnorm.DB, o Row) (Row, error) {
 		`)`
 
 	// run query
-	_, err = db.ExecContext(ctx, sqlstr, o.{{join .Table.Columns.Names.Sorted ", o."}})
+	_, err = db.Exec(sqlstr, o.{{join .Table.Columns.Names.Sorted ", o."}})
 	if err != nil {
 		return o, err
 	}
@@ -344,7 +344,7 @@ func Delete( ctx context.Context,
 	  {{- end}}
 	`
 
-	res, err := db.ExecContext(ctx, sqlstr,
+	res, err := db.Exec(sqlstr,
 	{{- range .Table.PrimaryKeys.DBNames.Sorted -}}
 		{{camel .}},
 	{{- end -}}
@@ -352,10 +352,7 @@ func Delete( ctx context.Context,
 	if err != nil {
 		return 0, errors.Wrap(err, "delete {{.Table.Name}}")
 	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
+	rows := res.RowsAffected()
 	return rows, nil
 }
 {{end}}
@@ -373,22 +370,22 @@ func DeleteWhere(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer) (i
 		return 0, err
 	}
 
-	res, err := db.ExecContext(ctx, sqlstr, args...)
+	res, err := db.Exec(sqlstr, args...)
 	if err != nil {
 		return 0, errors.Wrap(err, "delete {{.Table.Name}}")
 	}
-	return res.RowsAffected()
+	return res.RowsAffected(), nil
 }
 
 // DeleteAll deletes all Rows from the database and returns the number of rows deleted.
 func DeleteAll(ctx context.Context, db {{$rootPkg}}.DB) (int64, error) {
 	const sqlstr = `DELETE FROM {{$schema}}.{{ $table }}`
 
-	res, err := db.ExecContext(ctx, sqlstr)
+	res, err := db.Exec(sqlstr)
 	if err != nil {
 		return 0, errors.Wrap(err, "deleteall {{.Table.Name}}")
 	}
-	return res.RowsAffected()
+	return res.RowsAffected(), nil
 }
 
 // prepareCreate Prepares some fields for a new row if they haven't been provided already.  For example, primary key UUID values, created, etc

@@ -10,18 +10,19 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/jackc/pgx"
 	sq "github.com/Masterminds/squirrel"
 )
 
 var safeField = regexp.MustCompile(`^[a-zA-Z_0-9]+\z`)
 
+
 // DB is the common interface for database operations.
-//
 // This should work with database/sql.DB and database/sql.Tx.
 type DB interface {
-	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
-	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+	Exec(string, ...interface{}) (pgx.CommandTag, error)
+	Query(string, ...interface{}) (*pgx.Rows, error)
+	QueryRow(string, ...interface{}) *pgx.Row
 }
 
 // Order Specifies an order for field
@@ -122,7 +123,7 @@ func Qry() sq.StatementBuilderType {
 	return sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 }
 
-func rollbackErr(err error, tx *pgx.Tx) error {
+func RollbackErr(err error, tx *pgx.Tx) error {
 	if err != nil {
 		tx.Rollback()
 		return err

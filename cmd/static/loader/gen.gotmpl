@@ -10,6 +10,7 @@ import (
 	"{{.Config.PackageName}}/gnorm"
 	"{{.Config.PackageName}}/gnorm/{{.Config.Generate.SchemaName}}/{{$package}}"
 	"{{.ModelPackage}}"
+	sq "github.com/Masterminds/squirrel"
 	"github.com/episub/estack/validate"
 	"github.com/codemodus/kace"
 	opentracing "github.com/opentracing/opentracing-go"
@@ -76,7 +77,7 @@ func (l *PostgresLoader) batchedGet{{.ModelName}}(id {{.PrimaryKeyType}}, db gno
 
 	reply := <-rchan
 
-	return reply.{{.ModelName}}, reply.Error
+	return reply.Row, reply.Error
 }
 
 func (l *PostgresLoader) run{{.ModelName}}Batcher() {
@@ -97,13 +98,13 @@ func (l *PostgresLoader) run{{.ModelName}}Batcher() {
 			}
 
 			log.Printf("Batched {{camel .ModelName}} size: %d", len({{camel .ModelName}}FRs))
-			{{camel .ModelName}}s, err = {{$package}}.GetMulti{{.PmName}}Full(context.Background(), l.pool, ids)
+			{{camel .ModelName}}s, err = {{$package}}.Query(context.Background(), l.pool, []sq.Sqlizer{gnorm.In{{pascal .PrimaryKeyType}}({{$package}}.{{.PK}}Col, ids)})
 
 		OUTER:
 			for _, r := range {{camel .ModelName}}FRs {
 				for _, c := range {{camel .ModelName}}s {
 					if c.{{.ModelName}}ID == r.{{.ModelName}}ID {
-						r.Reply <- {{.ModelName}}FetchReply{ {{.ModelName}}: c, Error: nil}
+						r.Reply <- {{.ModelName}}FetchReply{ Row: c, Error: nil}
 						continue OUTER
 					}
 				}
@@ -180,7 +181,7 @@ func (l *PostgresLoader) Update{{.ModelName}}(ctx context.Context, id {{.Primary
 	}
 
 	err = l.update{{.ModelName}}(ctx, tx, id, u)
-	if rollbackErr(err, tx) != nil {
+	if gnorm.RollbackErr(err, tx) != nil {
 		return err
 	}
 
