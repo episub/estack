@@ -117,6 +117,30 @@ func PaginateCompare(fields []string, parentKey string, query string) (string, s
 	return strings.Join(compLeft, ", "), strings.Join(compRight, ", ")
 }
 
+func PaginateCursorWhere(cursor string, order Order, sqlstr string, field string) (string, []interface{}) {
+	var args []interface{}
+	var sql string
+	lgt := ">"
+	if order.Descending {
+		lgt = "<"
+	}
+
+	// Create the key function that allows us to limit ourselves to only results following the cursor.  We always sort by the primary key at the end to ensure a deterministic ordering of results.  No result left behind.
+	compLeft, compRight := PaginateCompare(order.Fields, field, sqlstr)
+
+	if len(compLeft) > 0 {
+		sql = fmt.Sprintf(" (%s, todo_id) %s (%s, ?)", compLeft, lgt, compRight)
+	} else {
+		sql = fmt.Sprintf(" (todo_id) %s (?)", lgt)
+	}
+	for range order.Fields {
+		args = append(args, cursor)
+	}
+	args = append(args, cursor)
+
+	return sql, args
+}
+
 // Qry Returns a new squirrel query builder.  Will one day check database
 // type and return appropriate type
 func Qry() sq.StatementBuilderType {

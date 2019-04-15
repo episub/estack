@@ -166,30 +166,8 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 	}
 
 	if cursor != nil {
-		var fields []string
-		//var comparisons []string
-		for _, o := range order.Fields {
-			fields = append(fields, o)
-		}
-
-		lgt := ">"
-		if order.Descending {
-			lgt = "<"
-		}
-
-		// Create the key function that allows us to limit ourselves to only results following the cursor.  We always sort by the primary key at the end to ensure a deterministic ordering of results.  No result left behind.
-		compLeft, compRight := gnorm.PaginateCompare(order.Fields, "{{.Table.DBName}}", sqlstr)
-		if len(compLeft) > 0 {
-			sqlstr += fmt.Sprintf(" (%s, {{$primaryKey.DBName}}) %s (%s, ?)", compLeft, lgt, compRight)
-		} else {
-			sqlstr += fmt.Sprintf(" ({{$primaryKey.DBName}}) %s (?)", lgt)
-		}
-		for  range order.Fields {
-			args = append(args, *cursor)
-		}
-		args = append(args, *cursor)
-
-		// Add this after the above so that it doesn't get added twice to the comparison part, where we explicitly add it
+		w, args := gnorm.PaginateCursorWhere(*cursor, order, sqlstr, "{{$primaryKey.DBName}}")
+		qry = qry.Where(w, args...)
 	}
 
 	err = order.AddField("{{$primaryKey.DBName}}")
@@ -198,10 +176,15 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 	}
 
 	// Order of results:
-	sqlstr += " ORDER BY " + order.String()
+	qry = qry.OrderBy(order.String())
 
 	if count > 0 {
-		sqlstr += fmt.Sprintf(" LIMIT %d", count + 1)
+		qry = qry.Limit(uint64(count) + 1)
+	}
+
+	sqlstr, args, err = qry.ToSql()
+	if err != nil {
+		return
 	}
 
 	pageQuery := fmt.Sprintf("SELECT {{$primaryKey.DBName}} FROM (%s) AS xyz", sqlstr)
@@ -226,6 +209,9 @@ func QueryPaginated(ctx context.Context, db gnorm.DB, cursor *string, where []sq
 		fetchIDs = append(fetchIDs, r)
 	}
 
+	if len(fetchIDs) == 0 {
+		return
+	}
 
 	fetched, err := Query(ctx, db, []sq.Sqlizer{gnorm.In{{pascal $primaryKey.Type}}({{$primaryKey.Name}}Col, fetchIDs)})
 

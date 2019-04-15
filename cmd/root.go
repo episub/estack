@@ -44,6 +44,7 @@ func Execute() {
 }
 
 func loadTemplates() {
+	loaderTemplate = loadTemplateFromFile("loader/generated.gotmpl")
 	filterTemplate = loadTemplateFromFile("models/filter.gotmpl")
 	postgresTemplate = loadTemplateFromFile("loader/gen.gotmpl")
 	resolverTemplate = loadTemplateFromFile("resolvers/gen.gotmpl")

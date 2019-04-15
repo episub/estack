@@ -18,6 +18,7 @@ import (
 	"gnorm.org/gnorm/environ"
 )
 
+var loaderTemplate *template.Template
 var resolverTemplate *template.Template
 var postgresTemplate *template.Template
 var filterTemplate *template.Template
@@ -54,6 +55,7 @@ var genCmd = cli.Command{
 		generateGnorm(config)
 
 		var tasks []Task
+		tasks = append(tasks, Task{Folder: "loader", Build: loaderBuild})
 		tasks = append(tasks, Task{Folder: "loader", Build: postgresBuild})
 		tasks = append(tasks, Task{Folder: "models", Build: modelsBuild})
 		tasks = append(tasks, Task{Folder: "resolvers", Build: resolverBuild})
@@ -269,6 +271,32 @@ func modelsBuild(config Config, folder string) error {
 	return goImports(fileName)
 }
 
+func loaderBuild(config Config, folder string) error {
+	fileName := "generated.go"
+	if len(folder) > 0 {
+		fileName = folder + "/" + fileName
+	}
+	f, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+
+	err = loaderTemplate.Execute(f, struct {
+		Timestamp time.Time
+		Config    Config
+	}{
+		Timestamp: time.Now(),
+		Config:    config,
+	})
+	f.Close()
+
+	if err != nil {
+		return err
+	}
+
+	return goImports(fileName)
+}
+
 func postgresBuild(config Config, folder string) error {
 	// Core models
 	for _, b := range config.Generate.Postgres {
@@ -285,23 +313,25 @@ func postgresBuild(config Config, folder string) error {
 		}
 
 		err = postgresTemplate.Execute(f, struct {
-			Config         Config
-			Timestamp      time.Time
-			ModelName      string
-			ModelPackage   string
-			PmName         string
-			PK             string
-			PrimaryKeyType string
-			Create         bool
+			Config            Config
+			Timestamp         time.Time
+			ModelName         string
+			ModelPackage      string
+			ModelPackageShort string
+			PmName            string
+			PK                string
+			PrimaryKeyType    string
+			Create            bool
 		}{
-			Config:         config,
-			Timestamp:      time.Now(),
-			ModelName:      b.ModelName,
-			ModelPackage:   b.ModelPackage,
-			PmName:         b.PmName,
-			PK:             b.PK,
-			PrimaryKeyType: b.PrimaryKeyType,
-			Create:         b.Create,
+			Config:            config,
+			Timestamp:         time.Now(),
+			ModelName:         b.ModelName,
+			ModelPackage:      b.ModelPackage,
+			ModelPackageShort: b.ModelPackageShort,
+			PmName:            b.PmName,
+			PK:                b.PK,
+			PrimaryKeyType:    b.PrimaryKeyType,
+			Create:            b.Create,
 		})
 		f.Close()
 
