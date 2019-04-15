@@ -278,6 +278,8 @@ generate:
   resolvers:
   - singularName: "Todo"
     pluralName: "Todos"
+    primaryKey: "TodoID" # Defaults to 'ID'
+    primaryKeyType: "int" # Defaults to 'string'
     query: true
 ```
 
@@ -321,8 +323,9 @@ import (
 	"context"
 	"fmt"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/example/todo/gnorm"
-	"github.com/example/todo/gnorm/dbl"
+	"github.com/example/todo/gnorm/public/todo"
 	"github.com/example/todo/models"
 )
 
@@ -347,9 +350,9 @@ func sortTodo(ctx context.Context, sortField models.TodoSort, order gnorm.Order)
 	return order, nil
 }
 
-func filterTodo(ctx context.Context, f models.TodoFilter) (where []gnorm.WhereClause, err error) {
+func filterTodo(ctx context.Context, f models.TodoFilter) (where []sq.Sqlizer, err error) {
 	if f.Done != nil {
-		where = append(where, dbl.TodoDoneCol.Equals(*f.Done))
+		where = append(where, sq.Eq{todo.DoneCol: *f.Done})
 	}
 	return
 }
@@ -367,7 +370,7 @@ func (r *queryResolver) TodosConnection(
 	*models.TodosConnection,
 	error,
 ) {
-	con, err := queryTodos(ctx, first, after, last, before, filters, sortField, sortDirection, []gnorm.WhereClause{})
+	con, err := queryTodos(ctx, first, after, last, before, filters, sortField, sortDirection, []sq.Sqlizer{})
 	return &con, err
 }
 ```
