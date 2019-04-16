@@ -40,11 +40,7 @@ type Row struct {
 // Field values for every column in {{.Table.Name}}.
 var (
 {{- range .Table.Columns.DBNames.Sorted }}{{with index $colsByName .}}
-	{{- if or (hasPrefix .Type (printf "%s." $rootPkg)) (hasPrefix .Type "enum.")}}
-	{{.Name}}Col {{ .Type }}Field = "{{ .DBName }}"
-	{{- else}}
-	{{.Name}}Col = "{{ .DBName }}"
-	{{- end}}{{end}}
+	{{.Name}}Col = "{{ .DBName }}"{{end}}
 {{- end}}
 )
 
@@ -283,6 +279,36 @@ func Find(ctx context.Context, db {{$rootPkg}}.DB,
 }
 {{end}}
 
+// One retrieve one row from '{{ $table }}'.
+func One(ctx context.Context, db {{$rootPkg}}.DB, where []sq.Sqlizer, order *gnorm.Order) (Row, error) {
+	qry := gnorm.Qry().Select(`{{ join .Table.Columns.DBNames ", " }}`)
+	qry = qry.From("{{$schema}}.{{ $table }}")
+
+	for _, w := range where {
+		qry = qry.Where(w)
+	}
+
+	if order != nil {
+		qry = qry.OrderBy(order.String())
+	}
+
+	qry = qry.Limit(1)
+
+	sqlstr, args, err := qry.ToSql()
+	if err != nil {
+		return Row{}, err
+	}
+
+	r := Row{}
+	err = db.QueryRow(sqlstr, args...).Scan({{- range .Table.Columns}}
+		{{- if .IsArray }}pq.Array(&r.{{ .Name }}),{{- else -}}&r.{{ .Name }},{{ end }}
+{{end -}})
+	if err != nil {
+		return Row{}, errors.Wrap(err, "queryOne {{.Table.Name}}")
+	}
+	return r, nil
+}
+
 // Upsert Creates or updates record based on input
 func Upsert(ctx context.Context, db gnorm.DB, o Row) (Row, error) {
 	span, _ := opentracing.StartSpanFromContext(ctx, "Upsert{{.Table.Name}}")
@@ -374,6 +400,33 @@ func DeleteAll(ctx context.Context, db {{$rootPkg}}.DB) (int64, error) {
 	return res.RowsAffected(), nil
 }
 
+// Update Updates with the provided records and condition
+func Update(ctx context.Context, db {{$rootPkg}}.DB, updates map[string]interface{}, where []sq.Sqlizer) (int64, error) {
+	qry := gnorm.Qry().Update("").Table("{{$schema}}.{{ $table }}")
+
+	{{if $hasUpdatedAt}}
+	if _, ok := updates["{{$params.UpdatedAtField}}"]; !ok {
+		updates["{{$params.UpdatedAtField}}"] = time.Now()
+	}
+	{{end}}
+
+	qry = qry.SetMap(updates)
+	for _, w := range where {
+		qry = qry.Where(w)
+	}
+
+	sqlstr, args, err := qry.ToSql()
+	if err != nil {
+		return 0, err
+	}
+
+	res, err := db.Exec(sqlstr, args...)
+	if err != nil {
+		return 0, errors.Wrap(err, "update {{.Table.Name}}")
+	}
+	return res.RowsAffected(), nil
+}
+
 // prepareCreate Prepares some fields for a new row if they haven't been provided already.  For example, primary key UUID values, created, etc
 func prepareCreate(ctx context.Context, o *Row) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "prepareCreate {{.Table.Name}}")
@@ -386,33 +439,27 @@ func prepareCreate(ctx context.Context, o *Row) error {
 	{{- range $index, $element := .Table.PrimaryKeys}}
 	{{if eq $element.DBType "uuid"}}
 	// Set Primary Key UUID if not set:
-	if len(o.{{$element.Name}}) == 0 {
+	if o.{{$element.Name}} == uuid.Nil {
 		id, err := uuid.NewV4()
 		if err != nil {
 			return err
 		}
 
-		o.{{$element.Name}} = id.String()
+		o.{{$element.Name}} = id
 	}
 	{{end}}
 	{{end}}
 
 	{{- range $index, $element := .Table.Columns}}
-	{{if eq $element.Name "Created"}}
+	{{if eq $element.Name (pascal $params.CreatedAtField)}}
 	// Set created time if not set
-	if o.Created.IsZero() {
-		o.Created = time.Now()
+	if o.{{pascal $params.CreatedAtField}}.IsZero() {
+		o.{{pascal $params.CreatedAtField}}= time.Now()
 	}
 	{{end}}
-	{{if eq $element.Name "Updated"}}
+	{{if eq $element.Name (pascal $params.UpdatedAtField)}}
 	// Set updated to now
-	o.Updated = time.Now()
-	{{end}}
-	{{if eq $element.Name "Effective"}}
-	// Set effective time if not set
-	if o.Effective.IsZero() {
-		o.Effective = time.Now()
-	}
+	o.{{$element.Name}} = time.Now()
 	{{end}}
 	{{if eq $element.Name "CreatedBy"}}
 	// Set CreatedBy if not already set

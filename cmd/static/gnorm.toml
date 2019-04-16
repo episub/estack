@@ -140,9 +140,9 @@ NoOverwriteGlobs = ["*.perm.go"]
 # from "github.com/lib/pq/hstore"
 "hstore" = "hstore.Hstore"
 # note that the package name here has to be kept in sync with the RootPkg above.
-"jsonb" = "generated.Jsonb"
+"jsonb" = "gnorm.Jsonb"
 # the package name here needs to be kept in sync with the enum template's package name
-"bytea" = "generated.Bytea"
+"bytea" = "gnorm.Bytea"
 
 # NullableTypeMap is a mapping of database type names to replacement type names
 # (generally types from your language for deserialization), specifically for
@@ -161,7 +161,7 @@ NoOverwriteGlobs = ["*.perm.go"]
 "integer" = "sql.NullInt64"
 "interval" = "*string"
 # note that the package name here has to be kept in sync with the RootPkg above.
-"jsonb" = "generated.Jsonb"
+"jsonb" = "gnorm.Jsonb"
 "numeric" = "sql.NullFloat64"
 "smallint" = "sql.NullInt64"
 "text" = "sql.NullString"

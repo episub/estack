@@ -12,6 +12,7 @@ import (
 	"{{.ModelPackage}}"
 	sq "github.com/Masterminds/squirrel"
 	"github.com/episub/estack/validate"
+	"github.com/gofrs/uuid"
 	"github.com/codemodus/kace"
 	opentracing "github.com/opentracing/opentracing-go"
 )
@@ -31,6 +32,19 @@ type {{.ModelName}}FetchReply struct {
 var {{camel .ModelName}}Initialised bool
 var {{camel .ModelName}}FRs []{{.ModelName}}FetchRequest
 var {{camel .ModelName}}MX sync.Mutex
+
+// One{{.ModelName}} Returns a single {{.ModelName}} with the given where clauses and order
+func (l *PostgresLoader) One{{.ModelName}}(ctx context.Context, where []sq.Sqlizer, order *gnorm.Order) (o {{.ModelStruct}}, err error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "One{{.ModelName}}")
+	defer span.Finish()
+
+	r, err := {{$package}}.One(ctx, l.pool, where, order)
+
+	o = hydrateModel{{.ModelName}}(ctx, r)
+
+	return o, err
+}
+
 
 // Get{{.ModelName}} Returns {{.ModelName}} with given ID
 {{- $idName := snake .ModelName}}
