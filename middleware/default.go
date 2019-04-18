@@ -6,17 +6,15 @@ import (
 
 	"github.com/episub/estack/store"
 	"github.com/episub/estack/validate"
+	"github.com/episub/estack/vars"
 )
-
-// SharedData Name of value in context that holds OPA related data
-const SharedData = "defaultSharedData"
 
 // DefaultMW Sets up items needed for most requests
 // - Adds a data object to the context, used for passing data through to OPA requests
 // - Sets validation context
 func DefaultMW(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := context.WithValue(r.Context(), SharedData, store.NewDataStore())
+		ctx := context.WithValue(r.Context(), vars.SharedData, store.NewDataStore())
 		ctx = validate.SetContext(r.Context())
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

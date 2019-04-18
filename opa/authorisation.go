@@ -7,8 +7,8 @@ import (
 	"log"
 	"reflect"
 
+	"bitbucket.org/blhc/api/store"
 	"github.com/99designs/gqlgen/graphql"
-	"github.com/episub/estack/store"
 	"github.com/open-policy-agent/opa/rego"
 	opentracing "github.com/opentracing/opentracing-go"
 )
@@ -148,13 +148,14 @@ func runRego(ctx context.Context, query string, input map[string]interface{}) (r
 	compiler := GetCompiler(ctx)
 	store := GetStore(ctx)
 
+	compiled := getCompiledQuery(query)
+
 	rego := rego.New(
-		rego.Query(query),
+		rego.ParsedQuery(compiled),
 		rego.Compiler(compiler),
 		rego.Input(input),
 		rego.Store(store),
 	)
 
-	res, err := rego.Eval(ctx)
-	return res, err
+	return rego.Eval(ctx)
 }

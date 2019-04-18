@@ -19,10 +19,12 @@ import (
 var unsafeCompiler = ast.NewCompiler()
 var unsafeDocuments = map[string]interface{}{}
 var unsafeStore storage.Store
+var unsafeQueries map[string]ast.Body
 var regoStore storage.Store
 var loaded bool
 var mutex = &sync.RWMutex{}
 var dMutex = &sync.RWMutex{}
+var queryMutex = &sync.RWMutex{}
 
 // GetCompiler Returns compiler object in thread-safe manner since we sometimes update the compiler in a separate thread
 func GetCompiler(ctx context.Context) *ast.Compiler {
@@ -151,6 +153,27 @@ func loadCompiler(path string) error {
 	return nil
 }
 
+func getCompiledQuery(query string) ast.Body {
+	var compiled ast.Body
+
+	// Check if already compiled:
+	queryMutex.RLock()
+	if compiled, ok := unsafeQueries[query]; ok {
+		compiled = unsafeQueries[query]
+		queryMutex.RUnlock()
+		return compiled
+	}
+	queryMutex.RUnlock()
+
+	// We must compile ourselves:
+	queryMutex.Lock()
+	compiled = ast.MustParseBody(query)
+	unsafeQueries[query] = compiled
+	queryMutex.Unlock()
+
+	return compiled
+}
+
 func setCompiler(compiler *ast.Compiler, documents map[string]interface{}) {
 	mutex.Lock()
 	unsafeCompiler = compiler
@@ -159,4 +182,7 @@ func setCompiler(compiler *ast.Compiler, documents map[string]interface{}) {
 	unsafeDocuments = documents
 	unsafeStore = inmem.NewFromObject(unsafeDocuments)
 	dMutex.Unlock()
+	queryMutex.Lock()
+	unsafeQueries = make(map[string]ast.Body)
+	queryMutex.Unlock()
 }
